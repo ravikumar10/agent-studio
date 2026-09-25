@@ -1,4 +1,4 @@
-# Enterprise Agent Studio — Codex Implementation Specification
+# Enterprise Agent Studio — Implementation Specification
 
 ## Run locally with one command
 
