@@ -104,7 +104,6 @@ fi
 
 if [[ "$build" == true ]]; then
   info "Building Agent Studio and the ephemeral Docker worker image"
-  compose build docker-agent-worker
   compose build
 fi
 

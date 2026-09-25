@@ -80,6 +80,10 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
   runtime-service:
+    # The runtime service and ephemeral worker use the same executable image.
+    # Tagging the normal service build with the worker reference guarantees that
+    # `docker compose up --build` can dispatch Docker-placed agents immediately.
+    image: agent-studio/runtime-worker:local
     build:
       context: ../..
       dockerfile: deploy/docker/runtime-service.Dockerfile
