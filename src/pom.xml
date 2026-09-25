@@ -17,6 +17,7 @@
     <module>libs/runtime-api</module>
     <module>services/control-plane</module>
     <module>services/runtime-service</module>
+    <module>services/slack-mcp</module>
     <module>workers/sample-catalog-worker</module>
   </modules>
   <properties>

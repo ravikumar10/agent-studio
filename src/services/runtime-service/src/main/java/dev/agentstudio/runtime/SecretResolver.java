@@ -3,6 +3,8 @@ package dev.agentstudio.runtime;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -29,5 +31,6 @@ public class SecretResolver {
         }
         throw new IllegalStateException("No secret adapter is configured for this credential reference");
     }
+    Map<String,String> resolveProviderCredentials(String tenant,String provider){Map<String,String> values=new LinkedHashMap<>();jdbc.sql("select credential_key,secret_ref from capability_provider_secrets where tenant_id=? and provider_id=? order by credential_key").params(tenant,provider).query((rs,n)->Map.entry(rs.getString(1),rs.getString(2))).list().forEach(entry->values.put(entry.getKey(),resolve(tenant,entry.getValue())));return values;}
     record Stored(String ciphertext,String iv){}
 }

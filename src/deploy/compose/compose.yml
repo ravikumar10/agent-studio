@@ -54,6 +54,13 @@ services:
       # "*" permits any public HTTP(S) host; the browser still blocks local/private/metadata networks.
       BROWSER_ALLOWED_HOSTS: ${BROWSER_ALLOWED_HOSTS:-*}
     shm_size: 1gb
+  slack-mcp:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/slack-mcp.Dockerfile
+    environment:
+      SLACK_API_BASE_URL: ${SLACK_API_BASE_URL:-https://slack.com/api}
+      SLACK_REQUEST_TIMEOUT_SECONDS: ${SLACK_REQUEST_TIMEOUT_SECONDS:-20}
   database-reader-tool:
     build:
       context: ../..
@@ -119,6 +126,7 @@ services:
       example-worker: {condition: service_started}
       sample-agent-worker: {condition: service_started}
       browser-mcp: {condition: service_started}
+      slack-mcp: {condition: service_started}
       docker-api-proxy: {condition: service_started}
       redis: {condition: service_healthy}
   docker-api-proxy:

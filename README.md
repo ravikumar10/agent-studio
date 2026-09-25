@@ -52,5 +52,11 @@ Agents may run on the platform, inside a client/customer environment, or as an i
 
 Machine-readable contracts are under `schemas/` and `api/`.
 
+For loss recovery or reconstruction with Codex/Claude Code, continue with
+[`docs/rebuild/README.md`](docs/rebuild/README.md). It documents the current
+implemented state, exact service/data flows, migrations, registries, agent
+runtime, MCP/model/memory behavior, Docker/Kubernetes execution, UI, run
+traces, security, known scheduling/multi-agent gaps, and verification steps.
+
 ## Implementation philosophy
 Do **not** build another agent framework. Build a control plane, stable execution harness, framework adapters, governed capability gateway, durable workflow integration, deployment/runtime management, and enterprise governance.
