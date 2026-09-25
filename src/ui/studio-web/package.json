@@ -4,6 +4,6 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {"dev": "vite", "build": "tsc -b && vite build", "test": "vitest run", "lint": "eslint ."},
-  "dependencies": {"@vitejs/plugin-react": "latest", "vite": "latest", "typescript": "latest", "react": "latest", "react-dom": "latest"},
+  "dependencies": {"@vitejs/plugin-react": "latest", "vite": "latest", "typescript": "latest", "react": "latest", "react-dom": "latest", "react-markdown": "latest", "remark-gfm": "latest", "vega": "latest", "vega-lite": "latest", "vega-embed": "latest"},
   "devDependencies": {"@types/react": "latest", "@types/react-dom": "latest", "vitest": "latest", "eslint": "latest", "typescript-eslint": "latest", "eslint-plugin-react-hooks": "latest"}
 }

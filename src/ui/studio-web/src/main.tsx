@@ -101,6 +101,12 @@ type UserProfile = {
   email?: string;
   preferences: Record<string, unknown>;
 };
+type StudioBootstrap = {
+  organization: { organizationId: string; displayName: string; settings: Record<string, unknown> };
+  user: { userId: string; displayName: string; email?: string; preferences: Record<string, unknown>; role: string };
+  capabilities: string[];
+  modelProfiles: string[];
+};
 type DeploymentEnvironment = {
   environmentId: string;
   displayName: string;
@@ -207,18 +213,20 @@ type Page =
   | "Observability"
   | "Capabilities"
   | "Model profiles"
-  | "User profile";
-const tenant = "local-development";
-const userId = "studio-user";
-const headers = {
-  "Content-Type": "application/json",
-  "X-Tenant-Id": tenant,
-  "X-User-Id": userId,
-};
+  | "User profile"
+  | "Agent workspace";
+let tenant = "";
+let userId = "";
+let studioSettings: Record<string, unknown> = {};
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(path, {
     ...init,
-    headers: { ...headers, ...init?.headers },
+    headers: {
+      "Content-Type": "application/json",
+      ...(tenant ? { "X-Tenant-Id": tenant } : {}),
+      ...(userId ? { "X-User-Id": userId } : {}),
+      ...init?.headers,
+    },
   });
   if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
   if (r.status === 204) return undefined as T;
@@ -229,11 +237,13 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 function App() {
+  const [session, setSession] = React.useState<StudioBootstrap | null>(null);
   const [page, setPage] = React.useState<Page>("Agents");
   const [agents, setAgents] = React.useState<Agent[]>([]);
   const [registries, setRegistries] = React.useState<Registry[]>([]);
   const [runs, setRuns] = React.useState<Run[]>([]);
   const [capabilities, setCapabilities] = React.useState<Capability[]>([]);
+  const [integrationTypes, setIntegrationTypes] = React.useState<IntegrationType[]>([]);
   const [skills, setSkills] = React.useState<Skill[]>([]);
   const [profiles, setProfiles] = React.useState<ModelProfile[]>([]);
   const [defaultModel, setDefaultModel] = React.useState("");
@@ -249,7 +259,7 @@ function App() {
   const load = React.useCallback(async () => {
     try {
       setError("");
-      const [a, r, u, c, s, m, p] = await Promise.all([
+      const [a, r, u, c, s, m, p, i] = await Promise.all([
         api<Agent[]>("/api/v1/agents"),
         api<Registry[]>("/api/v1/registries"),
         api<Run[]>("/api/v1/runs"),
@@ -257,6 +267,7 @@ function App() {
         api<Skill[]>("/api/v1/skills"),
         api<ModelProfile[]>("/api/v1/model-profiles"),
         api<UserProfile>("/api/v1/user-profile"),
+        api<IntegrationType[]>("/api/v1/integration-types"),
       ]);
       setAgents(a);
       setRegistries(r);
@@ -264,6 +275,7 @@ function App() {
       setCapabilities(c);
       setSkills(s);
       setProfiles(m);
+      setIntegrationTypes(i);
       const preferred = String(p.preferences?.defaultModelProfile || "");
       setDefaultModel(
         m.some((profile) => profile.profileId === preferred)
@@ -275,9 +287,24 @@ function App() {
     }
   }, []);
   React.useEffect(() => {
-    load();
-  }, [load]);
+    fetch("/api/v1/studio/bootstrap")
+      .then(async response => {
+        if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
+        return response.json() as Promise<StudioBootstrap>;
+      })
+      .then(value => {
+        tenant = value.organization.organizationId;
+        userId = value.user.userId;
+        studioSettings = value.organization.settings || {};
+        setSession(value);
+      })
+      .catch(reason => setError(reason instanceof Error ? reason.message : String(reason)));
+  }, []);
   React.useEffect(() => {
+    if (session) void load();
+  }, [load, session]);
+  React.useEffect(() => {
+    if (!session) return;
     const source = new EventSource(
       `/api/v1/runs/stream?tenantId=${encodeURIComponent(tenant)}`,
     );
@@ -295,7 +322,7 @@ function App() {
       );
     });
     return () => source.close();
-  }, []);
+  }, [session]);
   const filtered = agents.filter((a) =>
     `${a.id} ${a.displayName} ${a.ownerTeam}`
       .toLowerCase()
@@ -320,6 +347,7 @@ function App() {
       setError(e instanceof Error ? e.message : String(e));
     }
   }
+  if (!session) return <div className="boot-screen"><h1>Agent Studio</h1><p>{error || "Loading organization configuration…"}</p></div>;
   return (
     <div className="shell">
       <aside>
@@ -330,6 +358,7 @@ function App() {
           {(
             [
               "Agents",
+              ...(playground ? ["Agent workspace" as Page] : []),
               "Deployments",
               "Registries",
               "Memory",
@@ -350,13 +379,15 @@ function App() {
           ))}
         </nav>
         <div className="tenant">
-          Tenant
+          Organization
           <br />
-          <strong>{tenant}</strong>
+          <strong>{session.organization.displayName}</strong>
           <br />
           User
           <br />
-          <strong>{userId}</strong>
+          <strong>{session.user.displayName}</strong>
+          <br />
+          <small>{session.user.role}</small>
         </div>
       </aside>
       <main>
@@ -499,7 +530,10 @@ function App() {
                         <button
                           className="primary"
                           disabled={a.status !== "ACTIVE"}
-                          onClick={() => setPlayground(a)}
+                          onClick={() => {
+                            setPlayground(a);
+                            setPage("Agent workspace");
+                          }}
                         >
                           {a.interactionMode === "TASK"
                             ? "Run task"
@@ -535,6 +569,7 @@ function App() {
         {page === "Capabilities" && (
           <CapabilityProvidersPage
             capabilities={capabilities}
+            integrationTypes={integrationTypes}
             onNotice={setNotice}
           />
         )}{" "}
@@ -551,6 +586,21 @@ function App() {
             onNotice={setNotice}
             onChanged={load}
           />
+        )}
+        {playground && (
+          <div className={page === "Agent workspace" ? "agent-workspace" : "agent-workspace hidden"}>
+            <PlaygroundPanel
+              key={playground.id}
+              agent={playground}
+              tenantId={tenant}
+              subjectId={userId}
+              close={() => {
+                setPlayground(null);
+                setPage("Agents");
+              }}
+              onCatalogChanged={load}
+            />
+          </div>
         )}
         {modal && (
           <AgentModal
@@ -569,19 +619,14 @@ function App() {
             }}
           />
         )}
-        {playground && (
-          <PlaygroundPanel
-            agent={playground}
-            close={() => setPlayground(null)}
-            onCatalogChanged={load}
-          />
-        )}
       </main>
     </div>
   );
 }
 function subtitle(p: Page) {
-  return p === "Deployments"
+  return p === "Agent workspace"
+    ? "Interact with the selected agent and inspect its live execution."
+    : p === "Deployments"
     ? "Plan, schedule, and orchestrate portable agent workloads."
     : p === "Registries"
       ? "Govern agent, MCP, and skill sources."
@@ -594,6 +639,26 @@ function subtitle(p: Page) {
           : p === "User profile"
             ? "Manage your identity and non-secret Studio defaults."
             : "Build centrally. Govern centrally. Run anywhere.";
+}
+function capabilityFamilyName(value: string) {
+  const names: Record<string, string> = {
+    browser: "Headless browser",
+    http: "HTTP",
+    web: "Web",
+    database: "Generic database",
+    postgres: "PostgreSQL",
+    oracle: "Oracle",
+    mysql: "MySQL",
+    sqlserver: "SQL Server",
+    mongodb: "MongoDB",
+    redis: "Redis",
+    kubernetes: "Kubernetes",
+    platform: "Platform",
+    chart: "Charts and graphs",
+    knowledge: "Conversation knowledge",
+    email: "Email and delivery",
+  };
+  return names[value] || value.replaceAll("-", " ").replace(/^./, (character) => character.toUpperCase());
 }
 function Empty({ title }: { title: string }) {
   return (
@@ -1702,11 +1767,14 @@ function ObservabilityPage() {
     ["1m", "Last 1 minute"], ["15m", "Last 15 minutes"], ["1h", "Last hour"],
     ["6h", "Last 6 hours"], ["24h", "Last day"], ["7d", "Last 7 days"], ["30d", "Last month"],
   ];
-  const [range,setRange]=React.useState("24h");
+  const observabilitySettings=(studioSettings.observability||{}) as Record<string,unknown>;
+  const configuredRange=String(observabilitySettings.defaultRange||"24h");
+  const configuredRefresh=Math.max(2,Number(observabilitySettings.refreshSeconds||10));
+  const [range,setRange]=React.useState(ranges.some(item=>item[0]===configuredRange)?configuredRange:"24h");
   const [summary,setSummary]=React.useState<ObservabilitySummary|null>(null);
   const [error,setError]=React.useState("");
   const refresh=React.useCallback(()=>api<ObservabilitySummary>(`/api/v1/observability/summary?range=${range}`).then(value=>{setSummary(value);setError("")}).catch(reason=>setError(reason instanceof Error?reason.message:String(reason))),[range]);
-  React.useEffect(()=>{void refresh();const timer=window.setInterval(refresh,10000);const source=new EventSource(`/api/v1/runs/stream?tenantId=${encodeURIComponent(tenant)}`);source.addEventListener("run",refresh);source.addEventListener("run-event",refresh);return()=>{window.clearInterval(timer);source.close()}},[refresh]);
+  React.useEffect(()=>{void refresh();const timer=window.setInterval(refresh,configuredRefresh*1000);const source=new EventSource(`/api/v1/runs/stream?tenantId=${encodeURIComponent(tenant)}`);source.addEventListener("run",refresh);source.addEventListener("run-event",refresh);return()=>{window.clearInterval(timer);source.close()}},[refresh,configuredRefresh]);
   if(!summary)return <section className="panel"><h2>Execution telemetry</h2><p>{error||"Loading live telemetry…"}</p></section>;
   const totalTokens=summary.usage.inputTokens+summary.usage.outputTokens;
   const inputShare=totalTokens?summary.usage.inputTokens/totalTokens*100:0;
@@ -1762,9 +1830,11 @@ function CatalogPage({ endpoint }: { endpoint: string }) {
 }
 function CapabilityProvidersPage({
   capabilities,
+  integrationTypes,
   onNotice,
 }: {
   capabilities: Capability[];
+  integrationTypes: IntegrationType[];
   onNotice: (v: string) => void;
 }) {
   const [providers, setProviders] = React.useState<CapabilityProvider[]>([]);
@@ -1841,11 +1911,11 @@ function CapabilityProvidersPage({
       <section className="stats">
         <article>
           <strong>{capabilities.length}</strong>
-          <span>Logical capabilities</span>
+          <span>Organization MCP capabilities</span>
         </article>
         <article>
           <strong>{providers.length}</strong>
-          <span>Configured MCP/API providers</span>
+          <span>Configured MCP providers</span>
         </article>
         <article>
           <strong>{bindings.length}</strong>
@@ -1861,7 +1931,7 @@ function CapabilityProvidersPage({
       <section className="panel">
         <div className="panel-title">
           <div>
-            <h2>MCP and API provider configuration</h2>
+            <h2>MCP provider configuration</h2>
             <p className="muted">
               Agents bind logical capabilities; runtime resolves endpoint,
               operation, transport, and authentication automatically.
@@ -1911,7 +1981,10 @@ function CapabilityProvidersPage({
                   onChange={(e) => setBinding(e.target.value)}
                 >
                   <option value="">Select capability…</option>
-                  {capabilities.map((c) => (
+                  {capabilities.filter((capability) => {
+                    const suggested = integrationTypes.find((type) => type.kind === p.integrationKind)?.suggestedCapabilities || [];
+                    return suggested.includes(capability.capabilityId) || bindings.some((existing) => existing.providerId === p.providerId && existing.capabilityId === capability.capabilityId);
+                  }).map((c) => (
                     <option key={c.capabilityId} value={c.capabilityId}>
                       {c.displayName || c.capabilityId}
                     </option>
@@ -1937,6 +2010,7 @@ function CapabilityProvidersPage({
       </section>
       {adding && (
         <ProviderModal
+          types={integrationTypes}
           close={() => setAdding(false)}
           saved={() => {
             setAdding(false);
@@ -1951,29 +2025,27 @@ function CapabilityProvidersPage({
   );
 }
 function ProviderModal({
+  types,
   close,
   saved,
 }: {
+  types: IntegrationType[];
   close: () => void;
   saved: () => void;
 }) {
   const [id, setId] = React.useState("");
   const [name, setName] = React.useState("");
-  const [types, setTypes] = React.useState<IntegrationType[]>([]);
-  const [kind, setKind] = React.useState("POSTGRESQL");
+  const [kind, setKind] = React.useState(types[0]?.kind || "MCP_SERVER");
   const [endpoint, setEndpoint] = React.useState("");
   const [configuration, setConfiguration] = React.useState<Record<string, string>>({});
   const [credentials, setCredentials] = React.useState<Record<string, string>>({});
   const [busy, setBusy] = React.useState(false);
   const selected = types.find((item) => item.kind === kind);
   React.useEffect(() => {
-    api<IntegrationType[]>("/api/v1/integration-types").then((result) => {
-      setTypes(result);
-      const initial = result.find((item) => item.kind === "POSTGRESQL") || result[0];
-      if (initial) selectType(initial, result);
-    });
-  }, []);
-  function selectType(value: IntegrationType, available = types) {
+    const initial = types[0];
+    if (initial) selectType(initial);
+  }, [types]);
+  function selectType(value: IntegrationType) {
     setKind(value.kind);
     setEndpoint("");
     setCredentials({});
@@ -1984,7 +2056,6 @@ function ProviderModal({
           .map((field) => [field.key, field.defaultValue || ""]),
       ),
     );
-    if (!available.some((item) => item.kind === value.kind)) setTypes(available);
   }
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -2038,7 +2109,7 @@ function ProviderModal({
           />
         </label>
         <label>
-          Integration type
+          MCP integration profile
           <select value={kind} onChange={(e) => {
             const next = types.find((item) => item.kind === e.target.value);
             if (next) selectType(next);
@@ -2166,7 +2237,7 @@ function UserProfilePage({
         <div>
           <h2>User profile</h2>
           <p className="muted">
-            Configuration is scoped to {tenant} / {userId}. Secrets are managed
+            Configuration is scoped to organization {tenant} and account {userId}. Secrets are managed
             separately and never returned here.
           </p>
         </div>
@@ -3077,7 +3148,7 @@ function AgentModal({
   );
   const [repo, setRepo] = React.useState("https://github.com/ravikumar10/");
   const [current, setCurrent] = React.useState<AgentVersion | null>(null);
-  const [family, setFamily] = React.useState("ALL");
+  const [family, setFamily] = React.useState("RECOMMENDED");
   const [busy, setBusy] = React.useState(false);
   const [providerBindings, setProviderBindings] = React.useState<
     CapabilityBinding[]
@@ -3217,10 +3288,32 @@ function AgentModal({
       const versionNumber = nextVersion();
       const runtimeType =
         current?.runtimeType || (mode === "compose" ? "CONFIG" : "REMOTE_HTTP");
+      const chatMemory = interaction !== "TASK";
+      const requiredTools = chatMemory
+        ? [
+            "knowledge.search",
+            ...selected.filter(
+              (capability) =>
+                capability !== "knowledge.search" &&
+                capability !== "knowledge.store",
+            ),
+            "knowledge.store",
+          ]
+        : selected;
+      const orderedPipeline = chatMemory
+        ? [
+            "knowledge.search",
+            ...pipeline.filter(
+              (step) =>
+                step !== "knowledge.search" && step !== "knowledge.store",
+            ),
+            "knowledge.store",
+          ]
+        : pipeline;
       const plan = {
         skills: selectedSkills,
-        order: pipeline,
-        llmPolicy: "ON_DEMAND",
+        order: orderedPipeline,
+        llmPolicy: "PLAN_THEN_SYNTHESIZE",
         maxModelCalls: 2,
         reuseToolResults: true,
       };
@@ -3234,7 +3327,7 @@ function AgentModal({
           mode === "compose" ? `config://${id}/${versionNumber}` : repo,
         remoteEndpointRef: current?.remoteEndpointRef || null,
         capabilitiesProvided: [`agent.${id}.invoke`],
-        toolCapabilitiesRequired: selected,
+        toolCapabilitiesRequired: requiredTools,
         agentCapabilitiesRequired: members.map(
           (member) => `agent.${member}.invoke`,
         ),
@@ -3252,7 +3345,7 @@ function AgentModal({
       });
       const selectedProfiles = Object.fromEntries(
         Object.entries(capabilityProfiles).filter(
-          ([capability, provider]) => selected.includes(capability) && provider,
+          ([capability, provider]) => requiredTools.includes(capability) && provider,
         ),
       );
       const triggerConfiguration =
@@ -3294,8 +3387,27 @@ function AgentModal({
       setBusy(false);
     }
   }
-  const visible = capabilities.filter(
-    (c) => family === "ALL" || c.capabilityId.startsWith(`${family}.`),
+  const boundCapabilityIds = new Set(
+    providerBindings.filter((binding) => binding.enabled).map((binding) => binding.capabilityId),
+  );
+  const relevantCapabilities = capabilities.filter(
+    (capability) => boundCapabilityIds.has(capability.capabilityId) || selected.includes(capability.capabilityId),
+  );
+  const families = Array.from(new Set(relevantCapabilities.map((capability) => capability.capabilityId.split(".")[0]))).sort();
+  const intent = `${name} ${description}`.toLowerCase();
+  const recommendedFamilies = new Set<string>();
+  if (/browser|website|webpage|url|scrape|extract/.test(intent)) ["browser", "http", "web"].forEach((value) => recommendedFamilies.add(value));
+  if (/database|sql|query|table|schema|postgres|mysql|oracle/.test(intent)) ["database", "postgres", "mysql", "oracle", "sqlserver", "mongodb"].forEach((value) => recommendedFamilies.add(value));
+  if (/redis|memory|cache|vector/.test(intent)) recommendedFamilies.add("redis");
+  if (/kubernetes|k8s|deploy|pod/.test(intent)) recommendedFamilies.add("kubernetes");
+  if (/chart|graph|visualize|plot/.test(intent)) recommendedFamilies.add("chart");
+  if (/email|mail|send.*chart|share.*chart/.test(intent)) recommendedFamilies.add("email");
+  if (/chat|conversation|follow-up|knowledge|remember/.test(intent)) recommendedFamilies.add("knowledge");
+  if (interaction !== "TASK") recommendedFamilies.add("knowledge");
+  const visible = relevantCapabilities.filter(
+    (capability) => selected.includes(capability.capabilityId) || (family === "RECOMMENDED"
+      ? recommendedFamilies.has(capability.capabilityId.split(".")[0])
+      : capability.capabilityId.startsWith(`${family}.`)),
   );
   return (
     <div
@@ -3477,7 +3589,7 @@ function AgentModal({
           </div>
         </fieldset>
         <fieldset>
-          <legend>Database and MCP capabilities</legend>
+          <legend>MCP capabilities</legend>
           <div className="picker-toolbar">
             <label>
               Connector family
@@ -3485,20 +3597,14 @@ function AgentModal({
                 value={family}
                 onChange={(e) => setFamily(e.target.value)}
               >
-                <option value="ALL">All MCPs</option>
-                <option value="postgres">PostgreSQL</option>
-                <option value="oracle">Oracle</option>
-                <option value="mysql">MySQL</option>
-                <option value="sqlserver">SQL Server</option>
-                <option value="mongodb">MongoDB</option>
-                <option value="redis">Redis</option>
-                <option value="database">Generic database</option>
-                <option value="web">Web</option>
+                <option value="RECOMMENDED">Relevant to this agent</option>
+                {families.map((item) => <option key={item} value={item}>{capabilityFamilyName(item)}</option>)}
               </select>
             </label>
             <span>{selected.length} selected</span>
           </div>
           <div className="capability-picker">
+            {visible.length === 0 && <p className="muted">No configured MCP tools match this family. Add and bind a provider in MCP Capabilities first.</p>}
             {visible.map((c) => (
               <label key={c.capabilityId}>
                 <input
