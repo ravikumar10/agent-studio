@@ -1,0 +1,10 @@
+.registry.selected { outline: 2px solid #7161ef; }
+.registry footer button { width: auto; }
+.artifact-list { display: grid; gap: 10px; margin-top: 18px; }
+.artifact-list article { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px; border: 1px solid #dfe4de; border-radius: 12px; }
+.artifact-list article > div { min-width: 0; }
+.artifact-list h3 { display: inline; margin: 0 8px; }
+.artifact-list small { color: #69736f; font-weight: 500; }
+.artifact-list p { margin: 8px 0; }
+.artifact-list button { width: auto; flex: 0 0 auto; }
+@media (max-width: 760px) { .artifact-list article { align-items: flex-start; flex-direction: column; } }

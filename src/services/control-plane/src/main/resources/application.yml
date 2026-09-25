@@ -1,0 +1,14 @@
+spring:
+  application.name: agent-studio-control-plane
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/agent_studio}
+    username: ${DATABASE_USER:agent_studio}
+    password: ${DATABASE_PASSWORD:agent_studio}
+  flyway.enabled: true
+management:
+  endpoints.web.exposure.include: health,info,prometheus
+  endpoint.health.probes.enabled: true
+server.shutdown: graceful
+agent-studio:
+  secrets:
+    encryption-key: ${AGENT_STUDIO_ENCRYPTION_KEY:local-development-encryption-key-change-me}

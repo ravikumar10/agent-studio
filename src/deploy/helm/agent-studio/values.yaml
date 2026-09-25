@@ -1,0 +1,8 @@
+controlPlane:
+  image: agent-studio/control-plane:0.1.0
+  replicas: 2
+studioWeb:
+  image: agent-studio/studio-web:0.1.0
+  replicas: 2
+database:
+  secretName: agent-studio-database

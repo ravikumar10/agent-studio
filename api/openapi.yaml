@@ -1,0 +1,38 @@
+openapi: 3.1.0
+info:
+  title: Agent Studio API
+  version: 0.1.0-spec
+servers:
+  - url: /api/v1
+paths:
+  /agents:
+    get:
+      operationId: listAgents
+      responses: {"200": {description: Agents}}
+    post:
+      operationId: createAgent
+      responses: {"201": {description: Created}}
+  /agents/{agentId}/versions:
+    post:
+      operationId: createAgentVersion
+      parameters:
+        - {name: agentId, in: path, required: true, schema: {type: string}}
+      responses: {"201": {description: Immutable agent version created}}
+  /runs:
+    post:
+      operationId: startRun
+      responses:
+        "200": {description: Completed synchronously}
+        "202": {description: Accepted asynchronously}
+  /runs/{runId}:
+    get:
+      operationId: getRun
+      parameters:
+        - {name: runId, in: path, required: true, schema: {type: string}}
+      responses: {"200": {description: Run state}}
+  /runs/{runId}/cancel:
+    post:
+      operationId: cancelRun
+      parameters:
+        - {name: runId, in: path, required: true, schema: {type: string}}
+      responses: {"202": {description: Cancellation accepted}}

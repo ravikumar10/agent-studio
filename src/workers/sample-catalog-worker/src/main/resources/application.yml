@@ -1,0 +1,13 @@
+spring:
+  application.name: sample-catalog-worker
+  datasource:
+    url: ${SAMPLE_DATABASE_URL:jdbc:postgresql://sample-data:5432/sample_catalog}
+    username: ${SAMPLE_DATABASE_USER:sample_reader}
+    password: ${SAMPLE_DATABASE_PASSWORD:sample_reader}
+management.endpoints.web.exposure.include: health,info
+server.port: ${SERVER_PORT:8080}
+sample:
+  role: ${SAMPLE_ROLE:agent}
+  web-tool-url: ${WEB_TOOL_URL:http://web-reader-tool:8080}
+  database-tool-url: ${DATABASE_TOOL_URL:http://database-reader-tool:8080}
+  allowed-hosts: ${WEB_ALLOWED_HOSTS:example.com,www.example.com}

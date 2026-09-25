@@ -1,0 +1,13 @@
+agentId: shipment-investigator
+version: 1.0.0
+runtimeType: EMBABEL
+hostingMode: PLATFORM
+capabilitiesProvided: [shipment.delay.investigate]
+toolCapabilitiesRequired: [shipment.lookup, tms.trip.read]
+agentCapabilitiesRequired: [route.analyze]
+modelProfile: reasoning-balanced
+promptRef: prompt://shipment-investigator/1
+inputSchemaRef: schema://shipment-investigation-request/1
+outputSchemaRef: schema://shipment-investigation-result/1
+executionPolicyRef: policy://agent-standard/1
+securityPolicyRef: policy://shipment-read/1

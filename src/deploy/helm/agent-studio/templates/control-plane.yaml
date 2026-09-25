@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: agent-studio-control-plane}
+spec:
+  replicas: {{ .Values.controlPlane.replicas }}
+  selector: {matchLabels: {app: agent-studio-control-plane}}
+  template:
+    metadata: {labels: {app: agent-studio-control-plane}}
+    spec:
+      containers:
+        - name: control-plane
+          image: {{ .Values.controlPlane.image }}
+          ports: [{name: http, containerPort: 8080}]
+          envFrom: [{secretRef: {name: {{ .Values.database.secretName }}}}]
+          readinessProbe: {httpGet: {path: /actuator/health/readiness, port: http}}
+          livenessProbe: {httpGet: {path: /actuator/health/liveness, port: http}}
+          securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, readOnlyRootFilesystem: true}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: agent-studio-control-plane}
+spec:
+  selector: {app: agent-studio-control-plane}
+  ports: [{name: http, port: 8080, targetPort: http}]

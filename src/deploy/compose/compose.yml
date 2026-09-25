@@ -1,0 +1,153 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: agent_studio
+      POSTGRES_USER: agent_studio
+      POSTGRES_PASSWORD: agent_studio
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent_studio"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes: ["redis-data:/data"]
+  sample-data:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sample_catalog
+      POSTGRES_USER: sample_reader
+      POSTGRES_PASSWORD: sample_reader
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sample_reader -d sample_catalog"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - ./sample-data.sql:/docker-entrypoint-initdb.d/01-sample-data.sql:ro
+      - sample-data:/var/lib/postgresql/data
+  web-reader-tool:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/sample-catalog-worker.Dockerfile
+    environment:
+      SAMPLE_ROLE: web-tool
+      WEB_ALLOWED_HOSTS: example.com,www.example.com
+      SAMPLE_DATABASE_URL: jdbc:postgresql://sample-data:5432/sample_catalog
+    depends_on:
+      sample-data: {condition: service_healthy}
+  database-reader-tool:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/sample-catalog-worker.Dockerfile
+    environment:
+      SAMPLE_ROLE: database-tool
+      SAMPLE_DATABASE_URL: jdbc:postgresql://sample-data:5432/sample_catalog
+      SAMPLE_DATABASE_USER: sample_reader
+      SAMPLE_DATABASE_PASSWORD: sample_reader
+    depends_on:
+      sample-data: {condition: service_healthy}
+  sample-agent-worker:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/sample-catalog-worker.Dockerfile
+    environment:
+      SAMPLE_ROLE: agent
+      WEB_TOOL_URL: http://web-reader-tool:8080
+      DATABASE_TOOL_URL: http://database-reader-tool:8080
+      SAMPLE_DATABASE_URL: jdbc:postgresql://sample-data:5432/sample_catalog
+    depends_on:
+      web-reader-tool: {condition: service_started}
+      database-reader-tool: {condition: service_started}
+  control-plane:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/control-plane.Dockerfile
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/agent_studio
+      DATABASE_USER: agent_studio
+      DATABASE_PASSWORD: agent_studio
+      AGENT_STUDIO_ENCRYPTION_KEY: ${AGENT_STUDIO_ENCRYPTION_KEY:-local-development-encryption-key-change-me}
+    depends_on:
+      postgres: {condition: service_healthy}
+  runtime-service:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/runtime-service.Dockerfile
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/agent_studio
+      DATABASE_USER: agent_studio
+      DATABASE_PASSWORD: agent_studio
+      RUNTIME_EMBABEL_WORKER_URL: http://example-worker:8090/internal/v1/agent-invocations
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AGENT_STUDIO_ENCRYPTION_KEY: ${AGENT_STUDIO_ENCRYPTION_KEY:-local-development-encryption-key-change-me}
+      RUNTIME_TOOLS_WEB_URL: http://web-reader-tool:8080
+      RUNTIME_TOOLS_DATABASE_URL: http://database-reader-tool:8080
+      RUNTIME_DOCKER_HOST: tcp://docker-api-proxy:2375
+      RUNTIME_DOCKER_WORKER_IMAGE: compose-docker-agent-worker:latest
+      RUNTIME_DOCKER_NETWORK: compose_default
+      RUNTIME_WORKER_TOKEN: ${RUNTIME_WORKER_TOKEN:-local-worker-token-change-me}
+    depends_on:
+      control-plane: {condition: service_started}
+      example-worker: {condition: service_started}
+      sample-agent-worker: {condition: service_started}
+      docker-api-proxy: {condition: service_started}
+      redis: {condition: service_healthy}
+  docker-api-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    environment:
+      CONTAINERS: 1
+      POST: 1
+      PING: 1
+      VERSION: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+  docker-agent-worker:
+    profiles: ["worker-image"]
+    build:
+      context: ../..
+      dockerfile: deploy/docker/runtime-service.Dockerfile
+    environment:
+      SERVER_PORT: 8080
+      DATABASE_URL: jdbc:postgresql://postgres:5432/agent_studio
+      DATABASE_USER: agent_studio
+      DATABASE_PASSWORD: agent_studio
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AGENT_STUDIO_ENCRYPTION_KEY: ${AGENT_STUDIO_ENCRYPTION_KEY:-local-development-encryption-key-change-me}
+      RUNTIME_TOOLS_WEB_URL: http://web-reader-tool:8080
+      RUNTIME_TOOLS_DATABASE_URL: http://database-reader-tool:8080
+      RUNTIME_WORKER_TOKEN: ${RUNTIME_WORKER_TOKEN:-local-worker-token-change-me}
+    depends_on:
+      control-plane: {condition: service_started}
+      redis: {condition: service_healthy}
+  example-worker:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/example-worker.Dockerfile
+  studio-web:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/studio-web.Dockerfile
+    ports: ["8080:80"]
+    depends_on:
+      control-plane: {condition: service_started}
+      runtime-service: {condition: service_started}
+volumes:
+  postgres-data: {}
+  redis-data: {}
+  sample-data: {}

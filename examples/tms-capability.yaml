@@ -1,0 +1,9 @@
+capabilityId: tms.trip.read
+displayName: Read TMS Trip
+description: Retrieve trip information from the TMS domain.
+kind: TOOL
+inputSchemaRef: schema://tms-trip-read-request/1
+outputSchemaRef: schema://tms-trip/1
+riskClass: READ_ONLY
+owner: tms-platform
+tags: [tms, logistics]

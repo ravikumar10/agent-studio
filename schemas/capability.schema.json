@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Capability",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "capabilityId",
+    "kind",
+    "inputSchemaRef",
+    "outputSchemaRef",
+    "riskClass",
+    "owner"
+  ],
+  "properties": {
+    "capabilityId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{2,191}$"
+    },
+    "displayName": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "TOOL",
+        "AGENT",
+        "MODEL_SERVICE"
+      ]
+    },
+    "inputSchemaRef": {
+      "type": "string"
+    },
+    "outputSchemaRef": {
+      "type": "string"
+    },
+    "riskClass": {
+      "enum": [
+        "READ_ONLY",
+        "LOW_RISK_WRITE",
+        "REVERSIBLE_WRITE",
+        "IRREVERSIBLE_WRITE",
+        "PRIVILEGED"
+      ]
+    },
+    "owner": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

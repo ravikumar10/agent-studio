@@ -1,0 +1,8 @@
+id: reasoning-balanced
+qualityTier: HIGH
+latencyTier: NORMAL
+maxInputTokens: 64000
+maxOutputTokens: 8000
+requiredFeatures: [TOOL_CALLING, STRUCTURED_OUTPUT]
+fallbackPolicy: SAME_TIER
+maxCostPerCall: 0.50

@@ -1,0 +1,42 @@
+# Enterprise Agent Studio — Codex Implementation Specification
+
+Status: **spec-first; implementation code intentionally excluded**  
+Primary stack: **Java 21 + Spring Boot + Spring AI + Temporal + React/TypeScript**  
+Default JVM agent runtime: **Embabel adapter**  
+Interoperability: **MCP for tools/resources, A2A for remote agents, stable internal invocation contract**  
+Deployment: **Kubernetes-first, cloud-neutral, self-hostable, client-hosted, hybrid and on-prem**
+
+## Product statement
+Enterprise Agent Studio is a BriX-inspired, framework-neutral control plane and runtime platform for building, registering, testing, releasing, governing and operating AI agents.
+
+> **Build centrally. Govern centrally. Run anywhere.**
+
+Agents may run on the platform, inside a client/customer environment, or as an independently managed remote agent. Developers bind agents to logical capabilities rather than infrastructure endpoints.
+
+## Read order for Codex
+1. `AGENTS.md`
+2. `docs/01-product-spec.md`
+3. `docs/02-architecture.md`
+4. `docs/03-repository-structure.md`
+5. `docs/04-domain-model.md`
+6. `docs/05-api-contracts.md`
+7. `docs/06-agent-runtime.md`
+8. `docs/07-capability-tool-mcp.md`
+9. `docs/08-a2a-remote-agents.md`
+10. `docs/09-temporal.md`
+11. `docs/10-data-model.md`
+12. `docs/11-security.md`
+13. `docs/12-observability.md`
+14. `docs/13-ui-spec.md`
+15. `docs/14-release-versioning.md`
+16. `docs/15-deployment-portability.md`
+17. `docs/16-testing-evaluation.md`
+18. `docs/17-non-functional-requirements.md`
+19. `docs/18-implementation-plan.md`
+20. `docs/19-architecture-decisions.md`
+21. `docs/20-sources-and-version-notes.md`
+
+Machine-readable contracts are under `schemas/` and `api/`.
+
+## Implementation philosophy
+Do **not** build another agent framework. Build a control plane, stable execution harness, framework adapters, governed capability gateway, durable workflow integration, deployment/runtime management, and enterprise governance.

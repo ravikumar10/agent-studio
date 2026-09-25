@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ModelProfile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "qualityTier",
+    "latencyTier",
+    "requiredFeatures"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "qualityTier": {
+      "enum": [
+        "FAST",
+        "BALANCED",
+        "HIGH",
+        "MAX"
+      ]
+    },
+    "latencyTier": {
+      "enum": [
+        "LOW",
+        "NORMAL",
+        "BATCH"
+      ]
+    },
+    "maxInputTokens": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "maxOutputTokens": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "requiredFeatures": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "TOOL_CALLING",
+          "STRUCTURED_OUTPUT",
+          "VISION",
+          "AUDIO",
+          "LONG_CONTEXT"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "fallbackPolicy": {
+      "enum": [
+        "NONE",
+        "SAME_TIER",
+        "ALLOW_LOWER_TIER"
+      ]
+    },
+    "maxCostPerCall": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    }
+  }
+}

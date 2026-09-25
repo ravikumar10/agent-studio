@@ -1,0 +1,23 @@
+.stream-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: #66726d;
+}
+
+.stream-state i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d69c32;
+}
+
+.stream-state.live i {
+  background: #31a461;
+  box-shadow: 0 0 0 4px #31a46122;
+}
+
+.stream-state.retrying i { animation: stream-pulse 1s infinite; }
+
+@keyframes stream-pulse { 50% { opacity: .3; } }

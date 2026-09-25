@@ -1,0 +1,24 @@
+insert into model_profiles(tenant_id,profile_id,spec) values
+('local-development','balanced-text','{"tenantId":"local-development","id":"balanced-text","qualityTier":"BALANCED","latencyTier":"NORMAL","maxInputTokens":8192,"maxOutputTokens":2048,"requiredFeatures":[],"fallbackPolicy":"ALLOW_LOWER_TIER","maxCostPerCall":0.10}')
+on conflict do nothing;
+
+insert into capabilities(tenant_id,capability_id,spec) values
+('local-development','web.fetch','{"tenantId":"local-development","capabilityId":"web.fetch","displayName":"Fetch approved webpage","description":"Fetch an allow-listed public HTTPS page","kind":"TOOL","inputSchemaRef":"catalog://schemas/web-fetch-input","outputSchemaRef":"catalog://schemas/web-fetch-output","riskClass":"READ_ONLY","owner":"platform","tags":["sample","web"]}'),
+('local-development','web.extract','{"tenantId":"local-development","capabilityId":"web.extract","displayName":"Extract webpage content","description":"Extract readable content from fetched HTML","kind":"TOOL","inputSchemaRef":"catalog://schemas/web-extract-input","outputSchemaRef":"catalog://schemas/web-extract-output","riskClass":"READ_ONLY","owner":"platform","tags":["sample","web"]}'),
+('local-development','database.describe-schema','{"tenantId":"local-development","capabilityId":"database.describe-schema","displayName":"Describe database schema","description":"Describe the approved sample schema","kind":"TOOL","inputSchemaRef":"catalog://schemas/db-schema-input","outputSchemaRef":"catalog://schemas/db-schema-output","riskClass":"READ_ONLY","owner":"platform","tags":["sample","database"]}'),
+('local-development','database.query-readonly','{"tenantId":"local-development","capabilityId":"database.query-readonly","displayName":"Query database read-only","description":"Execute an approved parameterized SELECT","kind":"TOOL","inputSchemaRef":"catalog://schemas/db-query-input","outputSchemaRef":"catalog://schemas/db-query-output","riskClass":"READ_ONLY","owner":"platform","tags":["sample","database"]}')
+on conflict do nothing;
+
+insert into agents(tenant_id,id,display_name,description,owner_team,tags,status,created_at,updated_at) values
+('local-development','website-reader','Website Reader','Docker sample agent that fetches allow-listed public webpages.','platform','["sample","web"]','ACTIVE',now(),now()),
+('local-development','database-reader','Database Reader','Docker sample agent that queries an isolated read-only product database.','platform','["sample","database"]','ACTIVE',now(),now())
+on conflict do nothing;
+
+insert into agent_versions(tenant_id,agent_id,version,spec,lifecycle,checksum,created_at) values
+('local-development','website-reader','1.0.0','{"tenantId":"local-development","agentId":"website-reader","version":"1.0.0","runtimeType":"REMOTE_HTTP","hostingMode":"EXTERNAL","artifactRef":"github://ravikumar10/agent-studio-sample-registry/agents/website-reader/agent.json","remoteEndpointRef":"http://sample-agent-worker:8080/internal/v1/agent-invocations","capabilitiesProvided":[],"toolCapabilitiesRequired":["web.fetch","web.extract"],"agentCapabilitiesRequired":[],"modelProfile":"balanced-text","promptRef":"github://ravikumar10/agent-studio-sample-registry/skills/website-research/SKILL.md","inputSchemaRef":"catalog://schemas/website-reader-input","outputSchemaRef":"catalog://schemas/website-reader-output","executionPolicyRef":"policy://sample-read-only","securityPolicyRef":"policy://public-web","checksum":"sample-website-reader-1.0.0","lifecycle":"ACTIVE","createdAt":"2026-09-25T00:00:00Z"}','ACTIVE','sample-website-reader-1.0.0',now()),
+('local-development','database-reader','1.0.0','{"tenantId":"local-development","agentId":"database-reader","version":"1.0.0","runtimeType":"REMOTE_HTTP","hostingMode":"EXTERNAL","artifactRef":"github://ravikumar10/agent-studio-sample-registry/agents/database-reader/agent.json","remoteEndpointRef":"http://sample-agent-worker:8080/internal/v1/agent-invocations","capabilitiesProvided":[],"toolCapabilitiesRequired":["database.describe-schema","database.query-readonly"],"agentCapabilitiesRequired":[],"modelProfile":"balanced-text","promptRef":"github://ravikumar10/agent-studio-sample-registry/skills/database-analysis/SKILL.md","inputSchemaRef":"catalog://schemas/database-reader-input","outputSchemaRef":"catalog://schemas/database-reader-output","executionPolicyRef":"policy://sample-read-only","securityPolicyRef":"policy://database-read-only","checksum":"sample-database-reader-1.0.0","lifecycle":"ACTIVE","createdAt":"2026-09-25T00:00:00Z"}','ACTIVE','sample-database-reader-1.0.0',now())
+on conflict do nothing;
+
+insert into agent_release_state(tenant_id,agent_id,active_version,updated_at) values
+('local-development','website-reader','1.0.0',now()),('local-development','database-reader','1.0.0',now())
+on conflict(tenant_id,agent_id) do update set active_version=excluded.active_version,updated_at=now();
