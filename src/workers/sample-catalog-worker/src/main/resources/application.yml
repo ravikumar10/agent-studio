@@ -10,4 +10,4 @@ sample:
   role: ${SAMPLE_ROLE:agent}
   web-tool-url: ${WEB_TOOL_URL:http://web-reader-tool:8080}
   database-tool-url: ${DATABASE_TOOL_URL:http://database-reader-tool:8080}
-  allowed-hosts: ${WEB_ALLOWED_HOSTS:example.com,www.example.com}
+  allowed-hosts: ${WEB_ALLOWED_HOSTS:*}

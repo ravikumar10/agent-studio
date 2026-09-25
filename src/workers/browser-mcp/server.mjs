@@ -19,12 +19,15 @@ const body = request => new Promise((resolve, reject) => {
   request.on("error", reject);
 });
 const list = value => String(value || "").toLowerCase().split(",").map(item => item.trim()).filter(Boolean);
-const privateAddress = address => address === "::1" || address.startsWith("127.") || address.startsWith("10.") || address.startsWith("192.168.") || /^172\.(1[6-9]|2\d|3[01])\./.test(address) || address.startsWith("169.254.") || address === "0.0.0.0";
+const privateAddress = address => {
+  const normalized = address.toLowerCase();
+  return normalized === "::1" || normalized === "::" || normalized.startsWith("fc") || normalized.startsWith("fd") || normalized.startsWith("fe8") || normalized.startsWith("fe9") || normalized.startsWith("fea") || normalized.startsWith("feb") || normalized.startsWith("::ffff:127.") || normalized.startsWith("::ffff:10.") || normalized.startsWith("::ffff:192.168.") || /^::ffff:172\.(1[6-9]|2\d|3[01])\./.test(normalized) || normalized.startsWith("127.") || normalized.startsWith("10.") || normalized.startsWith("192.168.") || /^172\.(1[6-9]|2\d|3[01])\./.test(normalized) || normalized.startsWith("169.254.") || normalized === "0.0.0.0";
+};
 async function validateUrl(raw, integration) {
   const url = new URL(raw);
   if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("browser URL must use HTTP(S)");
-  const allowed = list(integration.allowedHosts || process.env.BROWSER_ALLOWED_HOSTS || "example.com,www.example.com");
-  if (!allowed.includes(url.hostname.toLowerCase())) throw new Error("browser target host is not allow-listed");
+  const allowed = list(integration.allowedHosts || process.env.BROWSER_ALLOWED_HOSTS || "*");
+  if (!allowed.includes("*") && !allowed.includes(url.hostname.toLowerCase())) throw new Error("browser target host is not enabled by this integration");
   const addresses = await dns.lookup(url.hostname, { all: true });
   if (addresses.some(item => net.isIP(item.address) && privateAddress(item.address))) throw new Error("private network targets are blocked");
   return url;
@@ -34,8 +37,9 @@ async function run(input, operation) {
   const url = await validateUrl(input.url, integration);
   const context = await browser.newContext({ javaScriptEnabled: true, acceptDownloads: false });
   await context.route("**/*", async route => {
-    if (route.request().resourceType() !== "document") return route.continue();
-    try { await validateUrl(route.request().url(), integration); return route.continue(); }
+    const requested = route.request().url();
+    if (!requested.startsWith("http://") && !requested.startsWith("https://")) return route.continue();
+    try { await validateUrl(requested, integration); return route.continue(); }
     catch { return route.abort("blockedbyclient"); }
   });
   const page = await context.newPage();

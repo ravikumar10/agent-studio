@@ -41,7 +41,8 @@ services:
       dockerfile: deploy/docker/sample-catalog-worker.Dockerfile
     environment:
       SAMPLE_ROLE: web-tool
-      WEB_ALLOWED_HOSTS: ${WEB_ALLOWED_HOSTS:-example.com,www.example.com,wikipedia.org,en.wikipedia.org}
+      # "*" permits any public HTTP(S) host; the tool still blocks local/private/metadata networks.
+      WEB_ALLOWED_HOSTS: ${WEB_ALLOWED_HOSTS:-*}
       SAMPLE_DATABASE_URL: jdbc:postgresql://sample-data:5432/sample_catalog
     depends_on:
       sample-data: {condition: service_healthy}
@@ -50,7 +51,8 @@ services:
       context: ../..
       dockerfile: deploy/docker/browser-mcp.Dockerfile
     environment:
-      BROWSER_ALLOWED_HOSTS: ${BROWSER_ALLOWED_HOSTS:-example.com,www.example.com,wikipedia.org,en.wikipedia.org}
+      # "*" permits any public HTTP(S) host; the browser still blocks local/private/metadata networks.
+      BROWSER_ALLOWED_HOSTS: ${BROWSER_ALLOWED_HOSTS:-*}
     shm_size: 1gb
   database-reader-tool:
     build:
