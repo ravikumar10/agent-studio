@@ -10,8 +10,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class RunService {
-    private final RunStore store; private final List<AgentRuntimeAdapter> adapters; private final RunEventStream stream; private final ExecutionPlacementService placements; private final IsolatedWorkerClient worker; private final ExecutorService executor=Executors.newVirtualThreadPerTaskExecutor(); private final ConcurrentMap<String,Future<?>> active=new ConcurrentHashMap<>();
-    public RunService(RunStore store,List<AgentRuntimeAdapter> adapters,RunEventStream stream,ExecutionPlacementService placements,IsolatedWorkerClient worker){this.store=store;this.adapters=adapters;this.stream=stream;this.placements=placements;this.worker=worker;}
+    private final RunStore store; private final List<AgentRuntimeAdapter> adapters; private final RunEventStream stream; private final ExecutionPlacementService placements; private final IsolatedWorkerClient worker; private final ProgressEventContract progress; private final ExecutorService executor=Executors.newVirtualThreadPerTaskExecutor(); private final ConcurrentMap<String,Future<?>> active=new ConcurrentHashMap<>();
+    public RunService(RunStore store,List<AgentRuntimeAdapter> adapters,RunEventStream stream,ExecutionPlacementService placements,IsolatedWorkerClient worker,ProgressEventContract progress){this.store=store;this.adapters=adapters;this.stream=stream;this.placements=placements;this.worker=worker;this.progress=progress;}
     public RunView start(String tenant,StartRunRequest r){
         AgentVersion agent=store.resolve(tenant,r.agentId(),r.version()); String id=UUID.randomUUID().toString();
         RunView run=new RunView(id,tenant,agent.agentId(),agent.version(),Status.CREATED,Instant.now(),null,null,Map.of(),null); store.create(run); publishRun(tenant,id); event(tenant,id,"run.created",Map.of("agentId",agent.agentId(),"version",agent.version()));
@@ -36,5 +36,5 @@ public class RunService {
     }catch(Exception e){if(store.get(run.tenantId(),run.runId()).status()==Status.CANCELLED)return;store.fail(run.tenantId(),run.runId(),e.getMessage());publishRun(run.tenantId(),run.runId());event(run.tenantId(),run.runId(),"run.failed",Map.of("error",Objects.toString(e.getMessage(),"unknown")));}}
     public boolean cancel(String t,String id){boolean done=store.cancel(t,id);if(done){worker.terminate(id);Future<?> task=active.remove(id);if(task!=null)task.cancel(true);publishRun(t,id);event(t,id,"run.cancelled",Map.of("workloadTerminated",true));}return done;}
     private void publishRun(String tenant,String id){stream.runChanged(store.get(tenant,id));}
-    private void event(String tenant,String id,String type,Map<String,Object> attributes){store.event(tenant,id,type,attributes);stream.semanticEvent(tenant,id,type,attributes);}
+    private void event(String tenant,String id,String type,Map<String,Object> attributes){Map<String,Object> decorated=progress.decorate(type,attributes);store.event(tenant,id,type,decorated);stream.semanticEvent(tenant,id,type,decorated);}
 }

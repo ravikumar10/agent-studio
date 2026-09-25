@@ -41,10 +41,19 @@ services:
       dockerfile: deploy/docker/sample-catalog-worker.Dockerfile
     environment:
       SAMPLE_ROLE: web-tool
-      WEB_ALLOWED_HOSTS: example.com,www.example.com
+      # "*" permits any public HTTP(S) host; the tool still blocks local/private/metadata networks.
+      WEB_ALLOWED_HOSTS: ${WEB_ALLOWED_HOSTS:-*}
       SAMPLE_DATABASE_URL: jdbc:postgresql://sample-data:5432/sample_catalog
     depends_on:
       sample-data: {condition: service_healthy}
+  browser-mcp:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/browser-mcp.Dockerfile
+    environment:
+      # "*" permits any public HTTP(S) host; the browser still blocks local/private/metadata networks.
+      BROWSER_ALLOWED_HOSTS: ${BROWSER_ALLOWED_HOSTS:-*}
+    shm_size: 1gb
   database-reader-tool:
     build:
       context: ../..
@@ -77,6 +86,8 @@ services:
       DATABASE_USER: agent_studio
       DATABASE_PASSWORD: agent_studio
       AGENT_STUDIO_ENCRYPTION_KEY: ${AGENT_STUDIO_ENCRYPTION_KEY:-local-development-encryption-key-change-me}
+      AGENT_STUDIO_LOCAL_ORGANIZATION: ${AGENT_STUDIO_LOCAL_ORGANIZATION:-local-development}
+      AGENT_STUDIO_LOCAL_USER: ${AGENT_STUDIO_LOCAL_USER:-studio-user}
     depends_on:
       postgres: {condition: service_healthy}
   runtime-service:
@@ -107,6 +118,7 @@ services:
       control-plane: {condition: service_started}
       example-worker: {condition: service_started}
       sample-agent-worker: {condition: service_started}
+      browser-mcp: {condition: service_started}
       docker-api-proxy: {condition: service_started}
       redis: {condition: service_healthy}
   docker-api-proxy:

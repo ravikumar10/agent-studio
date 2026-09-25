@@ -13,6 +13,7 @@ class ModelGatewayPromptTest {
         Map<String,Object> step=Map.of("capability","postgres.query-readonly","providerId","local-database-mcp","output",Map.of("rows",List.of(row),"rowCount",1));
         String prompt=gateway.prompt(Map.of("conversation",List.of(Map.of("role","user","text","Show electronics")),"message","Which products are available?","toolResults",List.of(step)));
         assertThat(prompt).contains("USER REQUEST","Which products are available?","TOOL EVIDENCE","postgres.query-readonly","Mechanical Keyboard","Treat successful tool output as authoritative","every factual value in the answer must appear in TOOL EVIDENCE","Do not use outside knowledge");
+        assertThat(prompt).contains("Write clear, polished Markdown","Do not duplicate charts with ASCII art","Match the detail level and terminology of the user's request","Never speculate about causes, intent, demand, risk, policy, or business meaning");
     }
 
     @Test void explicitlyMarksMissingEvidence(){

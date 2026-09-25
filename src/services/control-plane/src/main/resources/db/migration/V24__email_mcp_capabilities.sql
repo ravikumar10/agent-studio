@@ -1,0 +1,4 @@
+insert into capabilities(tenant_id,capability_id,spec) values
+('local-development','email.draft','{"tenantId":"local-development","capabilityId":"email.draft","displayName":"Draft email","description":"Create a governed email draft with optional chart attachments","kind":"TOOL","inputSchemaRef":"catalog://schemas/email-draft","outputSchemaRef":"catalog://schemas/email-draft-result","riskClass":"REVERSIBLE_WRITE","owner":"platform","tags":["mcp","email","collaboration"]}'),
+('local-development','email.send','{"tenantId":"local-development","capabilityId":"email.send","displayName":"Send email","description":"Send an approved email and chart attachment through a named Email MCP profile","kind":"TOOL","inputSchemaRef":"catalog://schemas/email-send","outputSchemaRef":"catalog://schemas/email-send-result","riskClass":"IRREVERSIBLE_WRITE","owner":"platform","tags":["mcp","email","collaboration","approval-required"]}')
+on conflict do nothing;
