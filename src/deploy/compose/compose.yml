@@ -96,8 +96,8 @@ services:
       RUNTIME_TOOLS_WEB_URL: http://web-reader-tool:8080
       RUNTIME_TOOLS_DATABASE_URL: http://database-reader-tool:8080
       RUNTIME_DOCKER_HOST: tcp://docker-api-proxy:2375
-      RUNTIME_DOCKER_WORKER_IMAGE: compose-docker-agent-worker:latest
-      RUNTIME_DOCKER_NETWORK: compose_default
+      RUNTIME_DOCKER_WORKER_IMAGE: agent-studio/runtime-worker:local
+      RUNTIME_DOCKER_NETWORK: agent-studio_default
       RUNTIME_WORKER_TOKEN: ${RUNTIME_WORKER_TOKEN:-local-worker-token-change-me}
     depends_on:
       control-plane: {condition: service_started}
@@ -116,6 +116,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
   docker-agent-worker:
     profiles: ["worker-image"]
+    image: agent-studio/runtime-worker:local
     build:
       context: ../..
       dockerfile: deploy/docker/runtime-service.Dockerfile

@@ -1,6 +1,20 @@
 # Enterprise Agent Studio — Codex Implementation Specification
 
-Status: **spec-first; implementation code intentionally excluded**  
+## Run locally with one command
+
+The only host prerequisite is Docker Desktop (macOS) or Docker Engine with
+Docker Compose v2 (Linux). Java 21, Maven, Node, PostgreSQL, Redis, the MCP
+tools, and all application services are built and run in containers.
+
+```bash
+./start.sh
+```
+
+Open <http://localhost:8080> after the readiness check completes. Common
+operations are `./start.sh --status`, `./start.sh --logs`, and
+`./start.sh --stop`. Database and Redis volumes are preserved when stopped.
+
+Status: **spec-led working implementation with local Docker deployment**  
 Primary stack: **Java 21 + Spring Boot + Spring AI + Temporal + React/TypeScript**  
 Default JVM agent runtime: **Embabel adapter**  
 Interoperability: **MCP for tools/resources, A2A for remote agents, stable internal invocation contract**  

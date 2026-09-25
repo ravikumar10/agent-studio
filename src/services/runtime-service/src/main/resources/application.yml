@@ -9,8 +9,8 @@ spring:
     port: ${REDIS_PORT:6379}
 runtime:
   docker-host: ${RUNTIME_DOCKER_HOST:tcp://docker-api-proxy:2375}
-  docker-worker-image: ${RUNTIME_DOCKER_WORKER_IMAGE:compose-docker-agent-worker:latest}
-  docker-network: ${RUNTIME_DOCKER_NETWORK:compose_default}
+  docker-worker-image: ${RUNTIME_DOCKER_WORKER_IMAGE:agent-studio/runtime-worker:local}
+  docker-network: ${RUNTIME_DOCKER_NETWORK:agent-studio_default}
   worker-token: ${RUNTIME_WORKER_TOKEN:local-worker-token-change-me}
   tool-cache:
     ttl-seconds: ${RUNTIME_TOOL_CACHE_TTL_SECONDS:300}
