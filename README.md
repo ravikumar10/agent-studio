@@ -1,4 +1,4 @@
-# Enterprise Agent Studio — Codex Implementation Specification
+# Enterprise Agent Studio — Implementation Specification
 
 Status: **spec-first; implementation code intentionally excluded**  
 Primary stack: **Java 21 + Spring Boot + Spring AI + Temporal + React/TypeScript**  
