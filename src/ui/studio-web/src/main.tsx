@@ -44,6 +44,8 @@ type Artifact = {
   description: string;
   state: string;
   pulledAt?: string;
+  promotedAt?: string;
+  promotionError?: string;
 };
 type Run = {
   runId: string;
@@ -1359,6 +1361,20 @@ function RegistryPage({
       setBusy("");
     }
   }
+  async function promote(a: Artifact) {
+    setBusy(`promote-${a.id}`);
+    try {
+      const result = await api<{ message: string }>(
+        `/api/v1/registries/${selected}/artifacts/${a.id}/promote`,
+        { method: "POST" },
+      );
+      setArtifacts(await api(`/api/v1/registries/${selected}/artifacts`));
+      await reload();
+      onNotice(result.message);
+    } finally {
+      setBusy("");
+    }
+  }
   async function removeRegistry(r: Registry) {
     if (
       !window.confirm(
@@ -1467,6 +1483,9 @@ function RegistryPage({
                     </h3>
                     <p>{a.description}</p>
                     <code>{a.path}</code>
+                    {a.promotionError && (
+                      <small className="error">{a.promotionError}</small>
+                    )}
                   </div>
                   <div className="actions">
                     <button onClick={() => removeArtifact(a)}>Delete</button>
@@ -1480,6 +1499,20 @@ function RegistryPage({
                         : a.state === "PULLED"
                           ? "Pull again"
                           : "Pull"}
+                    </button>
+                    <button
+                      className={a.state === "PROMOTED" ? "" : "primary"}
+                      disabled={
+                        !["PULLED", "PROMOTED", "FAILED"].includes(a.state) ||
+                        busy === `promote-${a.id}`
+                      }
+                      onClick={() => promote(a)}
+                    >
+                      {busy === `promote-${a.id}`
+                        ? "Promoting…"
+                        : a.state === "PROMOTED"
+                          ? "Promote again"
+                          : "Promote"}
                     </button>
                   </div>
                 </article>

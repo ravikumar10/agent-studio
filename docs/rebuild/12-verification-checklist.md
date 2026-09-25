@@ -33,8 +33,9 @@ Confirm control-plane Flyway completion, runtime readiness, Redis/PostgreSQL hea
 6. Stop an active run and verify the terminal state and Docker worker removal.
 7. Fetch an arbitrary public HTTP(S) site using HTTP and browser MCP; verify localhost/private targets fail.
 8. Delete user-owned models/integrations/agents and verify reload reflects PostgreSQL state.
-9. Sync/pull sample registries and clearly label artifacts staged until approval/materialization exists.
-10. Verify observability across several time windows and reconcile totals with run events.
+9. Sync, pull, and promote one sample of each registry artifact type. Confirm the agent appears as a draft, the skill appears in Agent Builder, and MCP capabilities plus a disabled provider appear. Re-pull old MCP artifacts before promotion so referenced JSON Schema is embedded.
+10. Configure the promoted MCP provider, verify it, enable its bindings, attach it to an agent version, and confirm tool events carry the same run ID as the final response.
+11. Verify observability across several time windows and reconcile totals with run events.
 
 ## Known negative tests
 

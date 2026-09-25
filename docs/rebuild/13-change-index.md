@@ -25,6 +25,7 @@ Use this index to locate the code that implements each major increment. Paths ar
 | Observability windows/cost/calls | runtime `ObservabilityController.java`, UI observability page | run events | 1m through 30d filters |
 | Docker worker cleanup | `runtime-service/IsolatedWorkerClient.java` | runtime configuration | terminal and cancelled containers removed |
 | One-command local operation | root `start.sh`, Compose/Dockerfiles | Compose environment and volumes | clean Docker host startup |
+| Registry artifact promotion | `RegistryController.java`, `RegistryPromotionService.java`, registry UI | `V29__registry_artifact_promotion.sql` | Sync → Pull → Promote; generated integration schema; disabled provider |
 
 ## Files to inspect before modifying a feature
 

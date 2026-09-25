@@ -19,12 +19,19 @@ This directory is the operational source for rebuilding the current implementati
 13. `12-verification-checklist.md` — exact build and acceptance checks.
 14. `13-change-index.md` — feature-to-code/migration lookup for every major increment.
 15. `14-slack-mcp.md` — Slack MCP adapter, credentials, tool contracts, ordering, and local deployment.
+16. `15-registry-promotion.md` — GitHub discovery, pull, promotion, and safe provider activation.
+17. `16-disaster-recovery.md` — clean-room recovery sequence when only the documentation remains.
+18. `17-ai-coding-prompts.md` — phase-scoped prompts and checkpoint rules for Codex or Claude Code.
+19. `18-contract-and-file-inventory.md` — modules, services, APIs, migrations, and required files.
+20. `RECOVERY_PROGRESS.template.md` — resumable, secret-free handoff record for reconstruction sessions.
 
 ## Reconstruction command for a coding agent
 
 Use this prompt after cloning the repository:
 
 > Read `AGENTS.md`, `docs/18-implementation-plan.md`, and every file under `docs/rebuild/` in numeric order. Treat them as requirements. Inspect existing code before editing. Implement phases in order, use Flyway for every schema change, preserve immutable agent versions, keep integrations behind adapters, run the verification checklist, and finish by running `./start.sh`.
+
+If the source tree has been lost and only these documents were recovered, start with `16-disaster-recovery.md`. Use one phase prompt at a time from `17-ai-coding-prompts.md`; do not ask a coding agent to recreate the entire platform in one unreviewed pass.
 
 ## Truth hierarchy
 
