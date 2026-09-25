@@ -52,7 +52,9 @@ type Run = {
   status: string;
   createdAt: string;
   output: Record<string, unknown>;
+  error?: string;
 };
+type RunEvent = { sequence:number; type:string; occurredAt:string; attributes:Record<string,unknown> };
 type Capability = {
   capabilityId: string;
   displayName: string;
@@ -1714,6 +1716,13 @@ function RunsPage({
   runs: Run[];
   streamState: "connecting" | "live" | "retrying";
 }) {
+  const [selectedId,setSelectedId]=React.useState("");
+  const [events,setEvents]=React.useState<RunEvent[]>([]);
+  const [loading,setLoading]=React.useState(false);
+  const selected=runs.find(run=>run.runId===selectedId);
+  const loadEvents=React.useCallback(async(id:string)=>{if(!id)return;setLoading(true);try{setEvents(await api<RunEvent[]>(`/api/v1/runs/${id}/events`))}finally{setLoading(false)}},[]);
+  React.useEffect(()=>{if(selectedId&&!runs.some(run=>run.runId===selectedId)){setSelectedId("");setEvents([])}},[runs,selectedId]);
+  React.useEffect(()=>{if(!selectedId)return;void loadEvents(selectedId);const source=new EventSource(`/api/v1/runs/stream?tenantId=${encodeURIComponent(tenant)}`);source.addEventListener("run-event",event=>{const value=JSON.parse((event as MessageEvent).data) as {runId:string};if(value.runId===selectedId)void loadEvents(selectedId)});source.addEventListener("run",event=>{const value=JSON.parse((event as MessageEvent).data) as {run:Run};if(value.run.runId===selectedId)void loadEvents(selectedId)});return()=>source.close()},[selectedId,loadEvents]);
   return (
     <section className="panel">
       <div className="panel-title">
@@ -1741,7 +1750,7 @@ function RunsPage({
           </thead>
           <tbody>
             {runs.map((r) => (
-              <tr key={r.runId}>
+              <tr key={r.runId} className={selectedId===r.runId?"selected-run":""} onClick={()=>{setSelectedId(r.runId);void loadEvents(r.runId)}}>
                 <td>
                   <code>{r.runId.slice(0, 8)}</code>
                 </td>
@@ -1759,6 +1768,13 @@ function RunsPage({
           </tbody>
         </table>
       )}
+      {selected&&<section className="run-trace" aria-label={`Execution trace for run ${selected.runId}`}>
+        <div className="panel-title"><div><h3>Run trace</h3><code>{selected.runId}</code></div><span className={`status ${selected.status.toLowerCase()}`}>{selected.status}</span></div>
+        <div className="run-trace-summary"><span><b>Agent</b>{selected.agentId} · {selected.agentVersion}</span><span><b>Started</b>{new Date(selected.createdAt).toLocaleString()}</span><span><b>Calls and events</b>{events.length}</span></div>
+        {loading&&events.length===0?<p className="muted">Loading this run…</p>:events.length===0?<Empty title="No calls recorded for this run"/>:<div className="event-log run-event-group">{events.map(event=><article key={event.sequence}><i className={event.type.includes("failed")?"failed":""}/><div><b>{event.type}</b><time>{new Date(event.occurredAt).toLocaleTimeString()}</time>{Object.keys(event.attributes||{}).length>0&&<pre>{JSON.stringify(event.attributes,null,2)}</pre>}</div></article>)}</div>}
+        {selected.error&&<div className="agent-error"><b>Run failed</b><p>{selected.error}</p></div>}
+        {selected.status==="COMPLETED"&&<details className="run-output"><summary>Structured run output</summary><pre>{JSON.stringify(selected.output,null,2)}</pre></details>}
+      </section>}
     </section>
   );
 }

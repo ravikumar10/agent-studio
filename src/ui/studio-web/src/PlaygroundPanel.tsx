@@ -5,7 +5,6 @@ import embed, {type Result as VegaResult} from 'vega-embed';
 
 type Agent = { id:string; displayName:string; interactionMode?:'TASK'|'CHAT'|'TASK_AND_CHAT'; topology?:'SINGLE_AGENT'|'MULTI_AGENT' };
 type Run = { runId:string; agentId:string; agentVersion:string; status:string; createdAt:string; output:Record<string,unknown>; error?:string };
-type RunEvent = { runId:string; type:string; occurredAt:string; attributes:Record<string,unknown> };
 type Message = { role:'user'|'assistant'; text:string; output?:Record<string,unknown> };
 
 function chartSpecs(value:unknown):any[] {
@@ -53,7 +52,6 @@ function ResponseBlock({block}:{block:Record<string,unknown>}){const type=String
   if(type==='notice')return <aside className={`response-notice ${String(content?.level||'info')}`}>{String(content?.text||content||'')}</aside>;
   return null;
 }
-function ProgressEvent({event}:{event:RunEvent}){const progress=event.attributes?.progress as Record<string,unknown>|undefined;if(!progress)return <><b>{event.type}</b><time>{new Date(event.occurredAt).toLocaleTimeString()}</time><pre>{Object.keys(event.attributes||{}).length?JSON.stringify(event.attributes,null,2):''}</pre></>;const telemetry={...event.attributes};delete telemetry.progress;return <><b>{String(progress.title)}</b><time>{new Date(event.occurredAt).toLocaleTimeString()}</time><p>{String(progress.summary)}</p>{Object.keys(telemetry).length>0&&<details><summary>Technical details</summary><pre>{JSON.stringify(telemetry,null,2)}</pre></details>}</>}
 function RichResponse({output,text}:{output?:Record<string,unknown>;text:string}){const response=output?.response as Record<string,unknown>|undefined;const blocks=Array.isArray(response?.blocks)?response.blocks as Record<string,unknown>[]:[];if(blocks.length)return <div className="rich-response">{blocks.map((block,index)=><ResponseBlock key={String(block.id||index)} block={block}/>)}</div>;const specs=output?chartSpecs(output):[];return <div className="rich-response"><div className="response-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>{specs.length>0&&<div className="chart-gallery">{specs.map((spec,index)=><ChartPreview key={`${String(spec.title||'chart')}-${index}`} value={spec}/>)}</div>}</div>}
 
 export default function PlaygroundPanel({agent,tenantId,subjectId,close,onCatalogChanged}:{agent:Agent;tenantId:string;subjectId:string;close:()=>void;onCatalogChanged?:()=>void}) {
@@ -64,7 +62,6 @@ export default function PlaygroundPanel({agent,tenantId,subjectId,close,onCatalo
   const [prompt,setPrompt]=React.useState('');
   const [messages,setMessages]=React.useState<Message[]>([]);
   const [run,setRun]=React.useState<Run|null>(null);
-  const [events,setEvents]=React.useState<RunEvent[]>([]);
   const [streamState,setStreamState]=React.useState<'connecting'|'live'|'retrying'>('connecting');
   const [busy,setBusy]=React.useState(false);
   const [failure,setFailure]=React.useState('');
@@ -77,10 +74,6 @@ export default function PlaygroundPanel({agent,tenantId,subjectId,close,onCatalo
     source.addEventListener('run',event=>{
       const next=(JSON.parse((event as MessageEvent).data) as {run:Run}).run;
       if(next.runId===runIdRef.current)setRun(next);
-    });
-    source.addEventListener('run-event',event=>{
-      const next=JSON.parse((event as MessageEvent).data) as RunEvent;
-      if(next.runId===runIdRef.current)setEvents(current=>current.some(item=>item.type===next.type&&item.occurredAt===next.occurredAt)?current:[...current,next]);
     });
     return()=>source.close();
   },[tenantId]);
@@ -97,7 +90,7 @@ export default function PlaygroundPanel({agent,tenantId,subjectId,close,onCatalo
   async function execute(){
     const message=prompt.trim();
     if(!message)return;
-    setBusy(true);setFailure('');setEvents([]);setRun(null);
+    setBusy(true);setFailure('');setRun(null);
     try{
       const input={message,conversation:messages};
       setMessages(current=>[...current,{role:'user',text:message}]);
@@ -107,8 +100,6 @@ export default function PlaygroundPanel({agent,tenantId,subjectId,close,onCatalo
       const started=await response.json() as Run;
       runIdRef.current=started.runId;
       setRun(started);
-      const prior=await fetch(`/api/v1/runs/${started.runId}/events`,{headers});
-      if(prior.ok)setEvents(await prior.json());
       const latest=await fetch(`/api/v1/runs/${started.runId}`,{headers});
       if(latest.ok)setRun(await latest.json());
     }catch(error){setFailure(error instanceof Error?error.message:String(error))}
@@ -141,10 +132,5 @@ export default function PlaygroundPanel({agent,tenantId,subjectId,close,onCatalo
     <div className="chat-composer"><textarea aria-label={taskOnly?'Task input':'Message agent'} placeholder={isWebsite?'Include the website URL and your question…':isDatabase?'Ask about products or include a category…':taskOnly?'Describe the task and all required inputs…':'Message the agent…'} value={prompt} onChange={event=>setPrompt(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();void execute()}}}/><button className="primary" disabled={busy||!!active||!prompt.trim()} onClick={execute}>{busy?'Starting…':taskOnly?'Run':'Send'}</button><button className="danger" disabled={!active} onClick={stop}>Stop</button></div>
 
     {failure&&<div className="notice error">{failure}</div>}
-
-    <div className="console-output">
-      <section><div className="panel-title"><h3>Execution progress</h3><small>{events.length} events</small></div><div className="event-log">{events.length===0?<p>No events yet.</p>:events.map((event,index)=><article key={`${event.occurredAt}-${index}`}><i className={event.type.includes('failed')?'failed':''}/><div><ProgressEvent event={event}/></div></article>)}</div></section>
-      <section><div className="panel-title"><h3>Response details</h3>{run&&<code>{run.runId.slice(0,8)}</code>}</div>{!run?<p className="muted">Run the agent to see its response.</p>:run.status==='FAILED'?<div className="agent-error"><b>Run failed</b><p>{run.error||'Unknown runtime error'}</p></div>:run.status==='CANCELLED'?<div className="agent-error"><b>Run cancelled</b></div>:run.status==='COMPLETED'?<details><summary>View structured execution output</summary><pre>{JSON.stringify(run.output,null,2)}</pre></details>:<p className="muted">Waiting for the agent…</p>}</section>
-    </div>
   </section>
 }

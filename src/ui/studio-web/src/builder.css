@@ -110,6 +110,15 @@
 .event-log time { color: #89908c; font-size: 10px; }
 .event-log pre { grid-column: 1 / -1; margin: 2px 0 0; overflow: auto; color: #647068; font-size: 10px; white-space: pre-wrap; }
 .event-log article p { grid-column: 1 / -1; margin: 0; color: #66736c; font-size: 11px; }.event-log details { grid-column: 1 / -1; }.event-log summary { cursor: pointer; color: #748079; font-size: 10px; }
+.selected-run { background: #f1f7f3; }
+.run-trace { margin-top: 18px; padding: 18px; border: 1px solid #d9e1dc; border-radius: 14px; background: #fbfcfb; }
+.run-trace .panel-title code { display: block; margin-top: 4px; font-size: 11px; }
+.run-trace-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin: 14px 0; }
+.run-trace-summary span { display: grid; gap: 3px; padding: 10px 12px; border-radius: 9px; background: #f1f4f2; font-size: 12px; }
+.run-event-group { max-height: 520px; }
+.run-output { margin-top: 14px; }
+.run-output summary { cursor: pointer; font-weight: 700; }
+@media (max-width: 760px) { .run-trace-summary { grid-template-columns: 1fr; } }
 .agent-error { margin-top: 15px; padding: 14px; border: 1px solid #efc2bb; border-radius: 8px; background: #fff5f3; color: #802b25; }
 .agent-error p { overflow-wrap: anywhere; }
 .chart-preview { margin: 14px 0; padding: 14px; overflow: auto; border: 1px solid #dfe4de; border-radius: 9px; background: #f8faf7; }
