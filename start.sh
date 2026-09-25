@@ -4,6 +4,7 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="$ROOT_DIR/src/deploy/compose/compose.yml"
 PROJECT_NAME="agent-studio"
+export COMPOSE_PROJECT_NAME="$PROJECT_NAME"
 UI_URL="${AGENT_STUDIO_URL:-http://localhost:8080}"
 WAIT_SECONDS="${AGENT_STUDIO_START_TIMEOUT:-180}"
 

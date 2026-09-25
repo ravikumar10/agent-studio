@@ -23,12 +23,15 @@ public class RunService {
         ExecutionPlacementService.Placement placement=placements.resolve(run.tenantId(),agent.agentId(),agent.version());
         if(placement==ExecutionPlacementService.Placement.AUTO)placement=agent.runtimeType()==AgentVersion.RuntimeType.CONFIG?ExecutionPlacementService.Placement.IN_PROCESS:ExecutionPlacementService.Placement.DOCKER;
         event(run.tenantId(),run.runId(),"execution.dispatched",Map.of("placement",placement.name()));
+        if(!agent.toolCapabilitiesRequired().isEmpty())event(run.tenantId(),run.runId(),"mcp.pipeline.started",Map.of("capabilities",agent.toolCapabilitiesRequired(),"count",agent.toolCapabilitiesRequired().size()));
         AgentExecutionResult result;
         if(placement==ExecutionPlacementService.Placement.DOCKER){result=worker.execute(agent,request,ctx);}
         else if(placement==ExecutionPlacementService.Placement.KUBERNETES){throw new IllegalStateException("Kubernetes placement requires an applied deployment; generate and apply the workload from Deployments");}
         else {AgentRuntimeAdapter adapter=adapters.stream().filter(a->a.supports(agent.runtimeType())).findFirst().orElseThrow();result=adapter.execute(agent,request,ctx);}
         if(store.get(run.tenantId(),run.runId()).status()==Status.CANCELLED)return;
         result.events().forEach(e->event(run.tenantId(),run.runId(),e.type(),e.attributes()));
+        if(!agent.toolCapabilitiesRequired().isEmpty())event(run.tenantId(),run.runId(),"mcp.pipeline.completed",Map.of("status",result.status().name()));
+        event(run.tenantId(),run.runId(),"usage.recorded",Map.of("inputTokens",result.usage().inputTokens(),"outputTokens",result.usage().outputTokens(),"modelCalls",result.usage().modelCalls(),"costMicros",result.usage().costMicros()));
         if(result.status()==AgentExecutionResult.Status.COMPLETED){store.complete(run.tenantId(),run.runId(),result.output());publishRun(run.tenantId(),run.runId());event(run.tenantId(),run.runId(),"run.completed",Map.of());}else{store.fail(run.tenantId(),run.runId(),Objects.requireNonNullElse(result.error(),result.status().name()));publishRun(run.tenantId(),run.runId());event(run.tenantId(),run.runId(),"run.failed",Map.of());}
     }catch(Exception e){if(store.get(run.tenantId(),run.runId()).status()==Status.CANCELLED)return;store.fail(run.tenantId(),run.runId(),e.getMessage());publishRun(run.tenantId(),run.runId());event(run.tenantId(),run.runId(),"run.failed",Map.of("error",Objects.toString(e.getMessage(),"unknown")));}}
     public boolean cancel(String t,String id){boolean done=store.cancel(t,id);if(done){worker.terminate(id);Future<?> task=active.remove(id);if(task!=null)task.cancel(true);publishRun(t,id);event(t,id,"run.cancelled",Map.of("workloadTerminated",true));}return done;}

@@ -7,6 +7,7 @@ import "./builder.css";
 import "./deployments.css";
 import "./providers.css";
 import "./runtime-config.css";
+import "./observability.css";
 import PlaygroundPanel from "./PlaygroundPanel";
 
 type Agent = {
@@ -184,12 +185,20 @@ type AgentRuntimeConfig = {
   resourceConfiguration: Record<string, unknown>;
   capabilityProfiles: Record<string, string>;
 };
+type ObservabilitySummary = {
+  generatedAt: string;
+  totals: { activeRuns: number; completedRuns: number; failedRuns: number };
+  usage: { inputTokens: number; outputTokens: number; modelCalls: number; costMicros: number };
+  tools: { calls: number; cacheHits: number; remoteCalls: number; capabilities: number };
+  activity: Array<{ runId: string; agentId: string; agentVersion: string; runStatus: string; eventType: string; occurredAt: string; attributes: Record<string, unknown> }>;
+};
 type Page =
   | "Agents"
   | "Deployments"
   | "Registries"
   | "Memory"
   | "Runs"
+  | "Observability"
   | "Capabilities"
   | "Model profiles"
   | "User profile";
@@ -319,6 +328,7 @@ function App() {
               "Registries",
               "Memory",
               "Runs",
+              "Observability",
               "Capabilities",
               "Model profiles",
               "User profile",
@@ -515,6 +525,7 @@ function App() {
         )}{" "}
         {page === "Memory" && <MemoryPage onNotice={setNotice} />}{" "}
         {page === "Runs" && <RunsPage runs={runs} streamState={streamState} />}{" "}
+        {page === "Observability" && <ObservabilityPage />}{" "}
         {page === "Capabilities" && (
           <CapabilityProvidersPage
             capabilities={capabilities}
@@ -572,6 +583,8 @@ function subtitle(p: Page) {
         ? "Hot Redis context and durable PostgreSQL knowledge."
         : p === "Runs"
           ? "Inspect pinned versions and execution outcomes."
+          : p === "Observability"
+            ? "Track live MCP execution, LLM usage, cache efficiency, and configured cost."
           : p === "User profile"
             ? "Manage your identity and non-secret Studio defaults."
             : "Build centrally. Govern centrally. Run anywhere.";
@@ -1678,6 +1691,33 @@ function RunsPage({
     </section>
   );
 }
+function ObservabilityPage() {
+  const [summary,setSummary]=React.useState<ObservabilitySummary|null>(null);
+  const [error,setError]=React.useState("");
+  const refresh=React.useCallback(()=>api<ObservabilitySummary>("/api/v1/observability/summary").then(value=>{setSummary(value);setError("")}).catch(reason=>setError(reason instanceof Error?reason.message:String(reason))),[]);
+  React.useEffect(()=>{void refresh();const timer=window.setInterval(refresh,10000);const source=new EventSource(`/api/v1/runs/stream?tenantId=${encodeURIComponent(tenant)}`);source.addEventListener("run",refresh);source.addEventListener("run-event",refresh);return()=>{window.clearInterval(timer);source.close()}},[refresh]);
+  if(!summary)return <section className="panel"><h2>Execution telemetry</h2><p>{error||"Loading live telemetry…"}</p></section>;
+  const totalTokens=summary.usage.inputTokens+summary.usage.outputTokens;
+  const inputShare=totalTokens?summary.usage.inputTokens/totalTokens*100:0;
+  const cacheRate=summary.tools.calls?summary.tools.cacheHits/summary.tools.calls*100:0;
+  const usd=summary.usage.costMicros/1_000_000;
+  return <div className="observability">
+    {error&&<div className="notice error">Telemetry refresh failed: {error}</div>}
+    <section className="telemetry-cards">
+      <article><span>Active tasks</span><strong>{summary.totals.activeRuns}</strong><small>Live agent executions</small></article>
+      <article><span>LLM calls · 24h</span><strong>{summary.usage.modelCalls}</strong><small>{summary.usage.inputTokens.toLocaleString()} in · {summary.usage.outputTokens.toLocaleString()} out</small></article>
+      <article><span>Configured cost · 24h</span><strong>${usd.toFixed(4)}</strong><small>Based on model-profile token rates</small></article>
+      <article><span>MCP calls · 24h</span><strong>{summary.tools.calls}</strong><small>{summary.tools.capabilities} governed capabilities</small></article>
+    </section>
+    <section className="telemetry-grid">
+      <article className="panel telemetry-chart"><div className="panel-title"><h2>LLM token usage</h2><code>{totalTokens.toLocaleString()} tokens</code></div><div className="stacked-bar"><i style={{width:`${inputShare}%`}}/><b style={{width:`${100-inputShare}%`}}/></div><div className="chart-legend"><span><i className="input"/>Input {summary.usage.inputTokens.toLocaleString()}</span><span><i className="output"/>Output {summary.usage.outputTokens.toLocaleString()}</span></div></article>
+      <article className="panel telemetry-chart"><div className="panel-title"><h2>MCP efficiency</h2><code>{cacheRate.toFixed(1)}% cache hit</code></div><div className="meter"><i style={{width:`${cacheRate}%`}}/></div><div className="chart-legend"><span>{summary.tools.cacheHits} Redis cache hits</span><span>{summary.tools.remoteCalls} remote calls</span></div></article>
+    </section>
+    <section className="panel telemetry-activity"><div className="panel-title"><h2>Live agentic activity</h2><span className="stream-state live"><i/>Live updates</span></div>
+      {summary.activity.length===0?<Empty title="No telemetry events yet"/>:<table><thead><tr><th>Time</th><th>Agent</th><th>Stage</th><th>State / details</th></tr></thead><tbody>{summary.activity.map((event,index)=><tr key={`${event.runId}-${event.occurredAt}-${index}`}><td>{new Date(event.occurredAt).toLocaleTimeString()}</td><td><b>{event.agentId}</b><br/><code>{event.runId.slice(0,8)}</code></td><td><span className={`telemetry-event ${event.eventType.includes("failed")?"failed":event.eventType.includes("completed")?"completed":"running"}`}>{event.eventType}</span></td><td><span className={`status ${event.runStatus.toLowerCase()}`}>{event.runStatus}</span><pre>{Object.keys(event.attributes||{}).length?JSON.stringify(event.attributes,null,2):""}</pre></td></tr>)}</tbody></table>}
+    </section>
+  </div>;
+}
 function CatalogPage({ endpoint }: { endpoint: string }) {
   const [items, setItems] = React.useState<Record<string, unknown>[]>([]);
   React.useEffect(() => {
@@ -2762,6 +2802,8 @@ function ModelProfileModal({
     "STRUCTURED_OUTPUT",
   ]);
   const [maxOutput, setMaxOutput] = React.useState(4096);
+  const [inputCost, setInputCost] = React.useState(0);
+  const [outputCost, setOutputCost] = React.useState(0);
   const [busy, setBusy] = React.useState(false);
   const [failure, setFailure] = React.useState("");
   const toggle = (f: string) =>
@@ -2803,7 +2845,11 @@ function ModelProfileModal({
           maxOutputTokens: maxOutput,
           requiredFeatures: features,
           fallbackPolicy: "NONE",
-          generationParameters: { temperature: 0.2 },
+          generationParameters: {
+            temperature: 0.2,
+            inputCostPerMillionUsd: inputCost,
+            outputCostPerMillionUsd: outputCost,
+          },
         }),
       });
       saved();
@@ -2899,6 +2945,32 @@ function ModelProfileModal({
             />
           </label>
         </div>
+        <div className="form-grid">
+          <label>
+            Input cost · USD / 1M tokens
+            <input
+              type="number"
+              min="0"
+              step="0.000001"
+              value={inputCost}
+              onChange={(e) => setInputCost(Number(e.target.value))}
+            />
+          </label>
+          <label>
+            Output cost · USD / 1M tokens
+            <input
+              type="number"
+              min="0"
+              step="0.000001"
+              value={outputCost}
+              onChange={(e) => setOutputCost(Number(e.target.value))}
+            />
+          </label>
+        </div>
+        <small>
+          Pricing is stored on this logical profile and used to estimate LLM
+          spend from provider token usage.
+        </small>
         <fieldset>
           <legend>Required capabilities</legend>
           <div className="feature-row">

@@ -33,20 +33,25 @@ public class ModelGateway {
                 .orElseThrow(()->new IllegalArgumentException("model connection is missing or disabled: "+connectionId));
         String model=profile.path("modelId").asText("");if(model.isBlank())return Optional.empty();
         int maxOutput=profile.path("maxOutputTokens").asInt(4096);String prompt=prompt(input);
-        return Optional.of(switch(connection.provider){case "OPENAI","OPENAI_COMPATIBLE"->openAi(tenant,connection,model,maxOutput,prompt);case "ANTHROPIC"->anthropic(tenant,connection,model,maxOutput,prompt);default->throw new IllegalArgumentException("unsupported model provider: "+connection.provider);});
+        JsonNode generation=profile.path("generationParameters");
+        double inputRate=generation.path("inputCostPerMillionUsd").asDouble(profile.path("inputCostPerMillionUsd").asDouble(0));
+        double outputRate=generation.path("outputCostPerMillionUsd").asDouble(profile.path("outputCostPerMillionUsd").asDouble(0));
+        return Optional.of(switch(connection.provider){case "OPENAI","OPENAI_COMPATIBLE"->openAi(tenant,connection,model,maxOutput,prompt,inputRate,outputRate);case "ANTHROPIC"->anthropic(tenant,connection,model,maxOutput,prompt,inputRate,outputRate);default->throw new IllegalArgumentException("unsupported model provider: "+connection.provider);});
     }
 
-    private ModelResult openAi(String tenant,Connection c,String model,int maxOutput,String prompt){
+    private ModelResult openAi(String tenant,Connection c,String model,int maxOutput,String prompt,double inputRate,double outputRate){
         RestClient.Builder builder=clients.clone().baseUrl(c.baseUrl).defaultHeader(HttpHeaders.AUTHORIZATION,"Bearer "+secrets.resolve(tenant,c.secretRef));
         if(notBlank(c.organizationId))builder.defaultHeader("OpenAI-Organization",c.organizationId);if(notBlank(c.projectId))builder.defaultHeader("OpenAI-Project",c.projectId);
         JsonNode response=builder.build().post().uri("/responses").contentType(MediaType.APPLICATION_JSON).body(Map.of("model",model,"instructions",MCP_ONLY_SYSTEM,"input",prompt,"max_output_tokens",maxOutput)).retrieve().body(JsonNode.class);
         String text=response.path("output_text").asText("");if(text.isBlank())for(JsonNode output:response.path("output"))for(JsonNode content:output.path("content"))if("output_text".equals(content.path("type").asText()))text+=content.path("text").asText();
-        return new ModelResult(text,response.path("usage").path("input_tokens").asLong(),response.path("usage").path("output_tokens").asLong(),model,"OPENAI");
+        long inputTokens=response.path("usage").path("input_tokens").asLong(),outputTokens=response.path("usage").path("output_tokens").asLong();
+        return new ModelResult(text,inputTokens,outputTokens,model,"OPENAI",costMicros(inputTokens,outputTokens,inputRate,outputRate));
     }
-    private ModelResult anthropic(String tenant,Connection c,String model,int maxOutput,String prompt){
+    private ModelResult anthropic(String tenant,Connection c,String model,int maxOutput,String prompt,double inputRate,double outputRate){
         JsonNode response=clients.clone().baseUrl(c.baseUrl).defaultHeader("x-api-key",secrets.resolve(tenant,c.secretRef)).defaultHeader("anthropic-version","2023-06-01").build().post().uri("/messages").contentType(MediaType.APPLICATION_JSON).body(Map.of("model",model,"system",MCP_ONLY_SYSTEM,"max_tokens",maxOutput,"messages",List.of(Map.of("role","user","content",prompt)))).retrieve().body(JsonNode.class);
         StringBuilder text=new StringBuilder();for(JsonNode content:response.path("content"))if("text".equals(content.path("type").asText()))text.append(content.path("text").asText());
-        return new ModelResult(text.toString(),response.path("usage").path("input_tokens").asLong(),response.path("usage").path("output_tokens").asLong(),model,"ANTHROPIC");
+        long inputTokens=response.path("usage").path("input_tokens").asLong(),outputTokens=response.path("usage").path("output_tokens").asLong();
+        return new ModelResult(text.toString(),inputTokens,outputTokens,model,"ANTHROPIC",costMicros(inputTokens,outputTokens,inputRate,outputRate));
     }
     String prompt(Map<String,Object> input){
         StringBuilder result=new StringBuilder("""
@@ -78,6 +83,7 @@ public class ModelGateway {
     private JsonNode read(String value){try{return json.readTree(value);}catch(Exception e){throw new IllegalStateException(e);}}
     private String write(Object value){try{return json.writeValueAsString(value);}catch(Exception e){throw new IllegalStateException("Tool evidence could not be serialized",e);}}
     private static boolean notBlank(String value){return value!=null&&!value.isBlank();}
+    private static long costMicros(long inputTokens,long outputTokens,double inputRate,double outputRate){return Math.round(inputTokens*inputRate+outputTokens*outputRate);}
     record Connection(String provider,String baseUrl,String secretRef,String organizationId,String projectId){}
-    record ModelResult(String text,long inputTokens,long outputTokens,String model,String provider){}
+    record ModelResult(String text,long inputTokens,long outputTokens,String model,String provider,long costMicros){}
 }
