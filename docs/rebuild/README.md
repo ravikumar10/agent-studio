@@ -18,6 +18,7 @@ This directory is the operational source for rebuilding the current implementati
 12. `11-security-and-secrets.md` — tenant isolation, encryption, SSRF, policy, and redaction.
 13. `12-verification-checklist.md` — exact build and acceptance checks.
 14. `13-change-index.md` — feature-to-code/migration lookup for every major increment.
+15. `14-slack-mcp.md` — Slack MCP adapter, credentials, tool contracts, ordering, and local deployment.
 
 ## Reconstruction command for a coding agent
 

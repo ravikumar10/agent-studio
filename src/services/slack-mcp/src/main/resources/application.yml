@@ -1,0 +1,6 @@
+spring.application.name: agent-studio-slack-mcp
+server.port: ${SERVER_PORT:8080}
+management.endpoints.web.exposure.include: health,info
+slack:
+  api-base-url: ${SLACK_API_BASE_URL:https://slack.com/api}
+  request-timeout-seconds: ${SLACK_REQUEST_TIMEOUT_SECONDS:20}

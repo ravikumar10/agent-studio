@@ -18,6 +18,7 @@ class AgentLoopPlanner {
         if(selected.contains("web.extract")&&available.contains("web.fetch"))selected.add("web.fetch");
         if(selected.contains("browser.extract")&&available.contains("browser.navigate"))selected.add("browser.navigate");
         if(selected.contains("chart.generate"))selected.addAll(dataCapabilities(message,available));
+        if(selected.contains("slack.messages.send")&&contains(message,"report","summary","analysis","dashboard"))selected.addAll(dataCapabilities(message,available));
         LinkedHashSet<String> ordered=new LinkedHashSet<>();if(available.contains("knowledge.search"))ordered.add("knowledge.search");ordered.addAll(selected);if(available.contains("knowledge.store"))ordered.add("knowledge.store");ordered.retainAll(available);
         return new Plan(List.copyOf(ordered),strategy,reason,usage);
     }
@@ -28,6 +29,7 @@ class AgentLoopPlanner {
         if(contains(text,"database","sql","table","schema","record","product","inventory"))for(String value:available)if(value.contains("database")||value.contains("postgres")||value.contains("mysql")||value.contains("oracle")||value.contains("sqlserver")||value.contains("mongodb"))result.add(value);
         if(contains(text,"redis","cache","memory"))for(String value:available)if(value.startsWith("redis."))result.add(value);
         if(contains(text,"chart","graph","plot","visual"))add(result,available,"chart.generate");
+        if(contains(text,"slack"))add(result,available,"slack.messages.send");
         if(contains(text,"email","mail","send","deliver","share"))add(result,available,"email.draft","email.send");
         if(result.isEmpty())for(String value:available)if(!value.startsWith("knowledge.")&&!"chart.generate".equals(value))result.add(value);
         return result;

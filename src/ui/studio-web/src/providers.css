@@ -4,7 +4,39 @@
 .card-actions button { padding: 7px 10px; }
 .muted { color: #68736e; font-size: 13px; font-weight: 400; }
 .typed-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.typed-fields > label { min-width: 0; }
+.typed-fields input, .typed-fields select { width: 100%; min-width: 0; }
 .secret-fields { border: 1px solid #d9e1dc; border-radius: 12px; padding: 14px; }
 .secret-fields legend { color: #43534c; font-weight: 800; padding: 0 7px; }
 .integration-runtime, .credential-summary { color: #53665d; background: #f1f5f2; border-radius: 8px; padding: 9px 11px; font: 12px ui-monospace, monospace; }
-@media (max-width: 760px) { .typed-fields { grid-template-columns: 1fr; } }
+.integration-modal {
+  width: min(720px, calc(100vw - 40px));
+  max-height: calc(100dvh - 40px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.integration-modal > label,
+.integration-modal > label input,
+.integration-modal > label select { width: 100%; min-width: 0; }
+.integration-modal .panel-title {
+  position: sticky;
+  top: -24px;
+  z-index: 2;
+  margin: -24px -24px 0;
+  padding: 24px 24px 12px;
+  background: white;
+}
+.integration-modal .actions {
+  position: sticky;
+  bottom: -24px;
+  z-index: 2;
+  margin: 2px -24px -24px;
+  padding: 14px 24px 24px;
+  background: linear-gradient(to bottom, rgba(255,255,255,.88), white 24%);
+}
+@media (max-width: 760px) {
+  .typed-fields { grid-template-columns: 1fr; }
+  .integration-modal { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); }
+}

@@ -1856,6 +1856,7 @@ function CapabilityProvidersPage({
   const [providers, setProviders] = React.useState<CapabilityProvider[]>([]);
   const [bindings, setBindings] = React.useState<CapabilityBinding[]>([]);
   const [adding, setAdding] = React.useState(false);
+  const [editing, setEditing] = React.useState<CapabilityProvider | null>(null);
   const [binding, setBinding] = React.useState("");
   const [error, setError] = React.useState("");
   const refresh = React.useCallback(async () => {
@@ -2009,6 +2010,7 @@ function CapabilityProvidersPage({
               </label>
               <div className="card-actions">
                 <button onClick={() => remove(p.providerId)}>Delete</button>
+                <button onClick={() => setEditing(p)}>Configure</button>
                 <button onClick={() => verify(p.providerId)}>
                   Check connection
                 </button>
@@ -2037,6 +2039,21 @@ function CapabilityProvidersPage({
           }}
         />
       )}
+      {editing && (
+        <ProviderModal
+          types={integrationTypes}
+          existing={editing}
+          close={() => setEditing(null)}
+          saved={async () => {
+            const id=editing.providerId;
+            setEditing(null);
+            await refresh();
+            const result=await api<{valid:boolean;message:string}>(`/api/v1/capability-providers/${id}/verify`,{method:"POST"});
+            await refresh();
+            onNotice(result.message);
+          }}
+        />
+      )}
     </>
   );
 }
@@ -2044,23 +2061,26 @@ function ProviderModal({
   types,
   close,
   saved,
+  existing,
 }: {
   types: IntegrationType[];
   close: () => void;
-  saved: () => void;
+  saved: () => void | Promise<void>;
+  existing?: CapabilityProvider;
 }) {
-  const [id, setId] = React.useState("");
-  const [name, setName] = React.useState("");
-  const [kind, setKind] = React.useState(types[0]?.kind || "MCP_SERVER");
-  const [endpoint, setEndpoint] = React.useState("");
-  const [configuration, setConfiguration] = React.useState<Record<string, string>>({});
+  const [id, setId] = React.useState(existing?.providerId || "");
+  const [name, setName] = React.useState(existing?.displayName || "");
+  const [kind, setKind] = React.useState(existing?.integrationKind || types[0]?.kind || "MCP_SERVER");
+  const [endpoint, setEndpoint] = React.useState(existing?.endpointRef || "");
+  const [configuration, setConfiguration] = React.useState<Record<string, string>>(() => Object.fromEntries(Object.entries(existing?.configuration || {}).map(([key,value])=>[key,String(value)])));
   const [credentials, setCredentials] = React.useState<Record<string, string>>({});
   const [busy, setBusy] = React.useState(false);
   const selected = types.find((item) => item.kind === kind);
   React.useEffect(() => {
+    if(existing)return;
     const initial = types[0];
     if (initial) selectType(initial);
-  }, [types]);
+  }, [types,existing]);
   function selectType(value: IntegrationType) {
     setKind(value.kind);
     setEndpoint("");
@@ -2077,8 +2097,8 @@ function ProviderModal({
     e.preventDefault();
     setBusy(true);
     try {
-      await api("/api/v1/capability-providers", {
-        method: "POST",
+      await api(existing?`/api/v1/capability-providers/${existing.providerId}`:"/api/v1/capability-providers", {
+        method: existing ? "PUT" : "POST",
         body: JSON.stringify({
           providerId: id,
           displayName: name,
@@ -2090,18 +2110,18 @@ function ProviderModal({
           environment: "local",
         }),
       });
-      saved();
+      await saved();
     } finally {
       setBusy(false);
     }
   }
   return (
     <div className="backdrop">
-      <form className="modal" onSubmit={submit}>
+      <form className="modal integration-modal" onSubmit={submit}>
         <div className="panel-title">
           <div>
             <p className="eyebrow">RUNTIME PROVIDER</p>
-            <h2>Configure integration</h2>
+            <h2>{existing ? "Update integration" : "Configure integration"}</h2>
           </div>
           <button type="button" onClick={close}>
             ×
@@ -2111,6 +2131,7 @@ function ProviderModal({
           Provider ID
           <input
             required
+            disabled={Boolean(existing)}
             pattern="[a-z0-9][a-z0-9.-]{2,191}"
             value={id}
             onChange={(e) => setId(e.target.value)}
@@ -2126,7 +2147,7 @@ function ProviderModal({
         </label>
         <label>
           MCP integration profile
-          <select value={kind} onChange={(e) => {
+          <select disabled={Boolean(existing)} value={kind} onChange={(e) => {
             const next = types.find((item) => item.kind === e.target.value);
             if (next) selectType(next);
           }}>
@@ -2137,7 +2158,7 @@ function ProviderModal({
         {selected?.providerType !== "IN_PROCESS" && (
           <label>
             Runtime adapter URL
-            <input required type="url" value={endpoint} onChange={(e) => setEndpoint(e.target.value)} placeholder="https://tool-gateway.example.com" />
+            <input required type="url" value={endpoint} onChange={(e) => setEndpoint(e.target.value)} placeholder={kind === "SLACK" ? "http://slack-mcp:8080" : "https://tool-gateway.example.com"} />
             <small>The agent calls this governed adapter; service credentials remain in the encrypted profile below.</small>
           </label>
         )}
@@ -2159,14 +2180,14 @@ function ProviderModal({
           ))}
         </div>
         {selected && selected.credentialFields.length > 0 && <fieldset className="secret-fields"><legend>Encrypted credentials</legend><div className="typed-fields">
-          {selected.credentialFields.map((field) => <label key={field.key}>{field.label}<input required={field.required} type="password" autoComplete="new-password" placeholder={field.placeholder} value={credentials[field.key] || ""} onChange={(e) => setCredentials({...credentials,[field.key]:e.target.value})} /></label>)}
-        </div><small>Each credential is encrypted independently and is never returned by the API or stored in an agent version.</small></fieldset>}
+          {selected.credentialFields.map((field) => <label key={field.key}>{field.label}<input required={!existing&&field.required} type="password" autoComplete="new-password" placeholder={existing?"Leave blank to keep stored value":field.placeholder} value={credentials[field.key] || ""} onChange={(e) => setCredentials({...credentials,[field.key]:e.target.value})} /></label>)}
+        </div><small>{existing?"Enter only credentials that need rotation. Blank fields keep their stored encrypted value.":"Each credential is encrypted independently and is never returned by the API or stored in an agent version."}</small></fieldset>}
         <div className="actions">
           <button type="button" onClick={close}>
             Cancel
           </button>
           <button className="primary" disabled={busy}>
-            {busy ? "Saving…" : "Save provider"}
+            {busy ? "Saving…" : existing ? "Save and verify" : "Save provider"}
           </button>
         </div>
       </form>
@@ -3418,6 +3439,7 @@ function AgentModal({
   if (/kubernetes|k8s|deploy|pod/.test(intent)) recommendedFamilies.add("kubernetes");
   if (/chart|graph|visualize|plot/.test(intent)) recommendedFamilies.add("chart");
   if (/email|mail|send.*chart|share.*chart/.test(intent)) recommendedFamilies.add("email");
+  if (/slack|channel|send.*message|post.*message/.test(intent)) recommendedFamilies.add("slack");
   if (/chat|conversation|follow-up|knowledge|remember/.test(intent)) recommendedFamilies.add("knowledge");
   if (interaction !== "TASK") recommendedFamilies.add("knowledge");
   const visible = relevantCapabilities.filter(
