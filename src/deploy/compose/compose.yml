@@ -95,8 +95,11 @@ services:
       AGENT_STUDIO_ENCRYPTION_KEY: ${AGENT_STUDIO_ENCRYPTION_KEY:-local-development-encryption-key-change-me}
       AGENT_STUDIO_LOCAL_ORGANIZATION: ${AGENT_STUDIO_LOCAL_ORGANIZATION:-local-development}
       AGENT_STUDIO_LOCAL_USER: ${AGENT_STUDIO_LOCAL_USER:-studio-user}
+      AGENT_STUDIO_RUNTIME_URL: http://runtime-service:8081
+      AGENT_STUDIO_SLACK_MCP_URL: http://slack-mcp:8080
     depends_on:
       postgres: {condition: service_healthy}
+      slack-mcp: {condition: service_started}
   runtime-service:
     # The runtime service and ephemeral worker use the same executable image.
     # Tagging the normal service build with the worker reference guarantees that

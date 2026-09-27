@@ -4,7 +4,7 @@ Agent Studio includes a dedicated, Docker-deployable Spring Boot adapter for Sla
 
 ## Components
 
-- `services/slack-mcp` implements `slack.messages.read` and `slack.messages.send`.
+- `services/slack-mcp` implements `slack.messages.read`, `slack.messages.send`, and the governed `slack.agent.invoke` parser/dispatch contract.
 - `deploy/docker/slack-mcp.Dockerfile` builds a Java 21 runtime image.
 - `deploy/compose/compose.yml` starts the service as `slack-mcp` on the internal Docker network.
 - Flyway migrations `V26` through `V28` register the capabilities, bind existing Slack profiles, and route the operations to the local service.
@@ -13,6 +13,7 @@ The service exposes:
 
 - `POST /tools/slack.messages.read`
 - `POST /tools/slack.messages.send`
+- `POST /tools/slack.agent.invoke`
 - `POST /tools/slack.verify`
 - `GET /actuator/health`
 
@@ -27,6 +28,8 @@ Create a named integration profile with type `SLACK` and set:
 - Runtime adapter URL `http://slack-mcp:8080` when running through the supplied Compose stack
 
 The bot token requires Slack scopes appropriate to the operation. Sending normally requires `chat:write`; reading public channel history normally requires `channels:history`. Private channels use the corresponding private-channel scope. The bot must be a member of channels it cannot otherwise access.
+
+Agent invocation uses an `app_mention` Events API subscription and the form `@AgentStudio call <agent-id> <task>`. Enable events on the named integration profile, store its signing secret, and configure `allowedAgentIds`. Configure Slack's Request URL as the public HTTPS address ending in `/api/v1/slack/events`. The receiver verifies Slack's signature, acknowledges and deduplicates the event, calls `slack.agent.invoke`, submits its dispatch envelope to the runtime asynchronously, and posts completion or failure in the originating thread. The endpoint deliberately does not trust workspace or tenant identifiers supplied in message text.
 
 ## Secret flow
 

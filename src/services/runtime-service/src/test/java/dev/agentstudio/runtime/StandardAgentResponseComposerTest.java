@@ -13,7 +13,7 @@ class StandardAgentResponseComposerTest {
         Map<String,Object> chartA=Map.of("chartType","bar","title","Sales","spec",Map.of("mark","bar"));
         Map<String,Object> chartB=Map.of("chartType","line","title","Trend","spec",Map.of("mark","line"));
         var step=new CapabilityPipeline.Step(2,"chart.generate","chart-mcp","IN_PROCESS",
-                Map.of("charts",List.of(chartA,chartB),"downloadFormats",List.of("PNG","SVG")),false);
+                Map.of("message","chart sales"),Map.of("charts",List.of(chartA,chartB),"downloadFormats",List.of("PNG","SVG")),false);
 
         Map<String,Object> response=new StandardAgentResponseComposer().compose("LLM summary",List.of(step),Map.of("model","test"));
         List<Map<String,Object>> blocks=(List<Map<String,Object>>)response.get("blocks");
@@ -28,7 +28,7 @@ class StandardAgentResponseComposerTest {
     @SuppressWarnings("unchecked")
     void includesGenericToolArtifactsWithoutEmbeddingExecutionTelemetry() {
         var step=new CapabilityPipeline.Step(1,"image.generate","image-mcp","HTTP",
-                Map.of("artifacts",List.of(Map.of("type","image","content",Map.of("url","/files/chart.png","alt","Forecast")))),false);
+                Map.of("message","forecast"),Map.of("artifacts",List.of(Map.of("type","image","content",Map.of("url","/files/chart.png","alt","Forecast")))),false);
         Map<String,Object> response=new StandardAgentResponseComposer().compose("Forecast attached",List.of(step),Map.of());
         List<Map<String,Object>> blocks=(List<Map<String,Object>>)response.get("blocks");
         assertThat(blocks).extracting(block->block.get("type")).containsExactly("markdown","image");

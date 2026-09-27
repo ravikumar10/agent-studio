@@ -58,5 +58,12 @@ implemented state, exact service/data flows, migrations, registries, agent
 runtime, MCP/model/memory behavior, Docker/Kubernetes execution, UI, run
 traces, security, known scheduling/multi-agent gaps, and verification steps.
 
+If the working tree is lost, begin with
+[`docs/rebuild/16-disaster-recovery.md`](docs/rebuild/16-disaster-recovery.md),
+then execute one prompt at a time from
+[`docs/rebuild/17-ai-coding-prompts.md`](docs/rebuild/17-ai-coding-prompts.md).
+The module/API/migration checklist is in
+[`docs/rebuild/18-contract-and-file-inventory.md`](docs/rebuild/18-contract-and-file-inventory.md).
+
 ## Implementation philosophy
 Do **not** build another agent framework. Build a control plane, stable execution harness, framework adapters, governed capability gateway, durable workflow integration, deployment/runtime management, and enterprise governance.

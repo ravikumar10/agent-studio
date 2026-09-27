@@ -16,13 +16,14 @@
 - Chat/task workspace with rich Markdown, tables, charts, images, code, files, and notices.
 - Per-run event storage, SSE updates, cancellation, Docker worker cleanup, Runs trace UI, and aggregate observability.
 - Local Docker Compose topology and one-command `start.sh`.
-- Repository registry discovery and artifact download for AGENT, MCP, and SKILL artifacts.
+- Repository registry discovery, bounded artifact download, and explicit promotion for AGENT, MCP, and SKILL artifacts.
+- Organization-scoped integration types generated from promoted MCP JSON configuration schemas.
 - Portable Kubernetes manifest generation and stored deployment plans.
 
 ## Partially implemented
 
-- Registry artifacts are discovered and pulled, but pulled content is not yet validated/approved/materialized into live agent, capability-provider, or skill catalogs.
 - Integration forms are database-backed at runtime, but their default schemas are still bootstrapped from Java definitions.
+- Promotion validates the structural manifest and materializes catalog records, but cryptographic artifact signing, vulnerability scanning, build provenance, and a production approval workflow remain future hardening.
 - Kubernetes plans can be generated and stored; applying to a real cluster requires a deployment adapter/credential implementation.
 - Redis semantic/vector concepts exist, but production embedding/index management is not complete.
 - Email is represented as a governed MCP capability; a production server and delivery approval workflow must be configured.
@@ -41,7 +42,7 @@
 
 - A scheduled selector in the UI does not mean a scheduler is firing runs.
 - A `MULTI_AGENT` topology does not mean member agents are invoked.
-- A pulled registry artifact is not automatically executable.
+- A pulled registry artifact is not executable until explicitly promoted, configured, deployed, verified, and enabled.
 - A generated Kubernetes YAML document is not proof that it was applied.
 - A model profile saved without successful backend validation is not usable.
 

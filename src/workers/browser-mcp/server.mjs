@@ -19,6 +19,14 @@ const body = request => new Promise((resolve, reject) => {
   request.on("error", reject);
 });
 const list = value => String(value || "").toLowerCase().split(",").map(item => item.trim()).filter(Boolean);
+const urlFromInput = input => {
+  if (typeof input.url === "string" && input.url.trim()) return input.url.trim();
+  const text = [input.message, input.question, input.prompt, input.task]
+    .filter(value => typeof value === "string")
+    .join("\n");
+  const match = text.match(/https?:\/\/[^\s<>"']+/i);
+  return match ? match[0].replace(/[),.;!?]+$/, "") : "";
+};
 const privateAddress = address => {
   const normalized = address.toLowerCase();
   return normalized === "::1" || normalized === "::" || normalized.startsWith("fc") || normalized.startsWith("fd") || normalized.startsWith("fe8") || normalized.startsWith("fe9") || normalized.startsWith("fea") || normalized.startsWith("feb") || normalized.startsWith("::ffff:127.") || normalized.startsWith("::ffff:10.") || normalized.startsWith("::ffff:192.168.") || /^::ffff:172\.(1[6-9]|2\d|3[01])\./.test(normalized) || normalized.startsWith("127.") || normalized.startsWith("10.") || normalized.startsWith("192.168.") || /^172\.(1[6-9]|2\d|3[01])\./.test(normalized) || normalized.startsWith("169.254.") || normalized === "0.0.0.0";
@@ -34,7 +42,9 @@ async function validateUrl(raw, integration) {
 }
 async function run(input, operation) {
   const integration = input._integration || {};
-  const url = await validateUrl(input.url, integration);
+  const target = urlFromInput(input);
+  if (!target) throw new Error("Include an HTTP(S) URL in the agent message");
+  const url = await validateUrl(target, integration);
   const context = await browser.newContext({ javaScriptEnabled: true, acceptDownloads: false });
   await context.route("**/*", async route => {
     const requested = route.request().url();

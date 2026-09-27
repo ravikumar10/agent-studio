@@ -11,4 +11,6 @@ class SlackMcpApplicationTest {
         byte[] image=new ChartPngRenderer().render(Map.of("chartType","bar","title","Inventory","spec",Map.of("title","Inventory","data",Map.of("values",List.of(Map.of("name","Keyboard","stock",8),Map.of("name","Mouse","stock",15))),"encoding",Map.of("x",Map.of("field","name"),"y",Map.of("field","stock")))));
         assertThat(image).hasSizeGreaterThan(1000);assertThat(image[0]).isEqualTo((byte)0x89);assertThat(image[1]).isEqualTo((byte)0x50);
     }
+    @Test void slackToolControllerExposesVerificationContract(){assertThat(SlackToolController.class.getDeclaredMethods()).anyMatch(method->method.getName().equals("verify")&&method.getParameterCount()==2);}
+    @Test void slackToolControllerExposesAgentInvocationContract(){assertThat(SlackToolController.class.getDeclaredMethods()).anyMatch(method->method.getName().equals("invoke")&&method.getParameterCount()==1);}
 }
