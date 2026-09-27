@@ -14,7 +14,8 @@ public class RunService {
     public RunService(RunStore store,List<AgentRuntimeAdapter> adapters,RunEventStream stream,ExecutionPlacementService placements,IsolatedWorkerClient worker,ProgressEventContract progress){this.store=store;this.adapters=adapters;this.stream=stream;this.placements=placements;this.worker=worker;this.progress=progress;}
     public RunView start(String tenant,StartRunRequest r){
         AgentVersion agent=store.resolve(tenant,r.agentId(),r.version()); String id=UUID.randomUUID().toString();
-        RunView run=new RunView(id,tenant,agent.agentId(),agent.version(),Status.CREATED,Instant.now(),null,null,Map.of(),null); store.create(run); publishRun(tenant,id); event(tenant,id,"run.created",Map.of("agentId",agent.agentId(),"version",agent.version()));
+        String sessionId=r.sessionId()==null||r.sessionId().isBlank()?id:r.sessionId();Map<String,Object> safeInput=RunTraceSanitizer.map(r.input());
+        RunView run=new RunView(id,tenant,agent.agentId(),agent.version(),Status.CREATED,sessionId,safeInput,Instant.now(),null,null,Map.of(),null); store.create(run); publishRun(tenant,id); event(tenant,id,"run.created",Map.of("agentId",agent.agentId(),"version",agent.version(),"sessionId",sessionId));
         Runnable work=()->{try{execute(run,agent,r);}finally{active.remove(id);}}; if(r.async())active.put(id,executor.submit(work));else work.run(); return store.get(tenant,id);
     }
     private void execute(RunView run,AgentVersion agent,StartRunRequest r){try{store.running(run.tenantId(),run.runId());publishRun(run.tenantId(),run.runId());event(run.tenantId(),run.runId(),"run.started",Map.of());
@@ -32,7 +33,7 @@ public class RunService {
         result.events().forEach(e->event(run.tenantId(),run.runId(),e.type(),e.attributes()));
         if(!agent.toolCapabilitiesRequired().isEmpty())event(run.tenantId(),run.runId(),"mcp.pipeline.completed",Map.of("status",result.status().name()));
         event(run.tenantId(),run.runId(),"usage.recorded",Map.of("inputTokens",result.usage().inputTokens(),"outputTokens",result.usage().outputTokens(),"modelCalls",result.usage().modelCalls(),"costMicros",result.usage().costMicros()));
-        if(result.status()==AgentExecutionResult.Status.COMPLETED){store.complete(run.tenantId(),run.runId(),result.output());publishRun(run.tenantId(),run.runId());event(run.tenantId(),run.runId(),"run.completed",Map.of());}else{store.fail(run.tenantId(),run.runId(),Objects.requireNonNullElse(result.error(),result.status().name()));publishRun(run.tenantId(),run.runId());event(run.tenantId(),run.runId(),"run.failed",Map.of());}
+        if(result.status()==AgentExecutionResult.Status.COMPLETED){store.complete(run.tenantId(),run.runId(),result.output());publishRun(run.tenantId(),run.runId());event(run.tenantId(),run.runId(),"run.completed",Map.of());}else{String error=Objects.requireNonNullElse(result.error(),result.status().name());store.fail(run.tenantId(),run.runId(),error);publishRun(run.tenantId(),run.runId());event(run.tenantId(),run.runId(),"run.failed",Map.of("error",error));}
     }catch(Exception e){if(store.get(run.tenantId(),run.runId()).status()==Status.CANCELLED)return;store.fail(run.tenantId(),run.runId(),e.getMessage());publishRun(run.tenantId(),run.runId());event(run.tenantId(),run.runId(),"run.failed",Map.of("error",Objects.toString(e.getMessage(),"unknown")));}}
     public boolean cancel(String t,String id){boolean done=store.cancel(t,id);if(done){worker.terminate(id);Future<?> task=active.remove(id);if(task!=null)task.cancel(true);publishRun(t,id);event(t,id,"run.cancelled",Map.of("workloadTerminated",true));}return done;}
     private void publishRun(String tenant,String id){stream.runChanged(store.get(tenant,id));}

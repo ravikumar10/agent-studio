@@ -18,6 +18,6 @@ The natural-language description is metadata and design input. It is not implici
 
 Registry types are AGENT, MCP, and SKILL. A GitHub registry exposes `catalog.json`; sync stages artifact metadata and pull stores immutable content. Required production flow is discover → pull → validate → approve → publish. Publication materializes an artifact into the appropriate organization catalog. Never execute mutable repository content directly during a run.
 
-## Current limitation
+## Current registry behavior
 
-Discovery and pull are implemented; validation/approval/materialization is not. Rebuild this before describing registries as fully dynamic. Default integration form schemas should ultimately come from an approved bootstrap registry or database templates rather than Java constants.
+Discovery, bounded pull, and explicit promotion are implemented. Promotion imports agents as drafts, skills into the skill catalog, and MCP tools as logical capabilities with a schema-driven organization integration type plus disabled provider/bindings. Configuration, isolated deployment, health verification, and explicit enablement are still required before a promoted MCP can serve runtime calls. Default built-in integration schemas remain Java-bootstrapped into the database; promoted MCP schemas are repository-driven.

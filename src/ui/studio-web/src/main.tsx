@@ -8,6 +8,9 @@ import "./deployments.css";
 import "./providers.css";
 import "./runtime-config.css";
 import "./observability.css";
+import "./runs.css";
+import "./runs-session.css";
+import "./guardrails.css";
 import PlaygroundPanel from "./PlaygroundPanel";
 
 type Agent = {
@@ -51,8 +54,12 @@ type Run = {
   runId: string;
   agentId: string;
   agentVersion: string;
+  sessionId: string;
+  input: Record<string, unknown>;
   status: string;
   createdAt: string;
+  startedAt?: string;
+  completedAt?: string;
   output: Record<string, unknown>;
   error?: string;
 };
@@ -69,6 +76,7 @@ type Skill = {
   reference: string;
   tags: string[];
 };
+type Guardrail = { guardrailId:string; displayName:string; description:string; guardrailType:string; enforcement:"BLOCK"|"WARN"|"REDACT"; phase:"INPUT"|"TOOL"|"OUTPUT"|"BOTH"; instruction:string; configuration:Record<string,unknown>; enabled:boolean; reference:string };
 type AgentVersion = {
   agentId: string;
   version: string;
@@ -216,6 +224,7 @@ type Page =
   | "Runs"
   | "Observability"
   | "Capabilities"
+  | "Guardrails"
   | "Model profiles"
   | "User profile"
   | "Agent workspace";
@@ -249,6 +258,7 @@ function App() {
   const [capabilities, setCapabilities] = React.useState<Capability[]>([]);
   const [integrationTypes, setIntegrationTypes] = React.useState<IntegrationType[]>([]);
   const [skills, setSkills] = React.useState<Skill[]>([]);
+  const [guardrails, setGuardrails] = React.useState<Guardrail[]>([]);
   const [profiles, setProfiles] = React.useState<ModelProfile[]>([]);
   const [defaultModel, setDefaultModel] = React.useState("");
   const [playground, setPlayground] = React.useState<Agent | null>(null);
@@ -263,12 +273,13 @@ function App() {
   const load = React.useCallback(async () => {
     try {
       setError("");
-      const [a, r, u, c, s, m, p, i] = await Promise.all([
+      const [a, r, u, c, s, g, m, p, i] = await Promise.all([
         api<Agent[]>("/api/v1/agents"),
         api<Registry[]>("/api/v1/registries"),
         api<Run[]>("/api/v1/runs"),
         api<Capability[]>("/api/v1/capabilities"),
         api<Skill[]>("/api/v1/skills"),
+        api<Guardrail[]>("/api/v1/guardrails"),
         api<ModelProfile[]>("/api/v1/model-profiles"),
         api<UserProfile>("/api/v1/user-profile"),
         api<IntegrationType[]>("/api/v1/integration-types"),
@@ -278,6 +289,7 @@ function App() {
       setRuns(u);
       setCapabilities(c);
       setSkills(s);
+      setGuardrails(g);
       setProfiles(m);
       setIntegrationTypes(i);
       const preferred = String(p.preferences?.defaultModelProfile || "");
@@ -369,6 +381,7 @@ function App() {
               "Runs",
               "Observability",
               "Capabilities",
+              "Guardrails",
               "Model profiles",
               "User profile",
             ] as Page[]
@@ -577,6 +590,7 @@ function App() {
             onNotice={setNotice}
           />
         )}{" "}
+        {page === "Guardrails" && <GuardrailsPage guardrails={guardrails} reload={load} onNotice={setNotice} />}{" "}
         {page === "Model profiles" && (
           <ModelProfilesPage
             profiles={profiles}
@@ -612,6 +626,7 @@ function App() {
             agents={agents}
             capabilities={capabilities}
             availableSkills={skills}
+            availableGuardrails={guardrails}
             profiles={profiles}
             defaultModel={defaultModel}
             close={() => setModal(false)}
@@ -634,6 +649,8 @@ function subtitle(p: Page) {
     ? "Plan, schedule, and orchestrate portable agent workloads."
     : p === "Registries"
       ? "Govern agent, MCP, and skill sources."
+      : p === "Guardrails"
+        ? "Configure reusable safety, privacy, grounding, and policy controls."
       : p === "Memory"
         ? "Hot Redis context and durable PostgreSQL knowledge."
         : p === "Runs"
@@ -1752,14 +1769,18 @@ function RunsPage({
   const [selectedId,setSelectedId]=React.useState("");
   const [events,setEvents]=React.useState<RunEvent[]>([]);
   const [loading,setLoading]=React.useState(false);
+  const [query,setQuery]=React.useState("");
+  const [status,setStatus]=React.useState("ALL");
   const selected=runs.find(run=>run.runId===selectedId);
+  const filtered=runs.filter(run=>(status==="ALL"||run.status===status)&&(!query.trim()||`${run.runId} ${run.sessionId||""} ${run.agentId} ${run.agentVersion} ${run.error||""} ${JSON.stringify(run.input||{})}`.toLowerCase().includes(query.trim().toLowerCase())));
   const loadEvents=React.useCallback(async(id:string)=>{if(!id)return;setLoading(true);try{setEvents(await api<RunEvent[]>(`/api/v1/runs/${id}/events`))}finally{setLoading(false)}},[]);
   React.useEffect(()=>{if(selectedId&&!runs.some(run=>run.runId===selectedId)){setSelectedId("");setEvents([])}},[runs,selectedId]);
   React.useEffect(()=>{if(!selectedId)return;void loadEvents(selectedId);const source=new EventSource(`/api/v1/runs/stream?tenantId=${encodeURIComponent(tenant)}`);source.addEventListener("run-event",event=>{const value=JSON.parse((event as MessageEvent).data) as {runId:string};if(value.runId===selectedId)void loadEvents(selectedId)});source.addEventListener("run",event=>{const value=JSON.parse((event as MessageEvent).data) as {run:Run};if(value.run.runId===selectedId)void loadEvents(selectedId)});return()=>source.close()},[selectedId,loadEvents]);
   return (
-    <section className="panel">
+    <section className="runs-page">
+      <section className="panel runs-list-panel">
       <div className="panel-title">
-        <h2>Recent runs</h2>
+        <div><h2>Recent runs</h2><p className="muted">Select a run to inspect its outcome, routing, tool calls, model usage, and evidence.</p></div>
         <span className={`stream-state ${streamState}`}>
           <i />
           {streamState === "live"
@@ -1769,24 +1790,35 @@ function RunsPage({
               : "Connecting…"}
         </span>
       </div>
+      <div className="runs-toolbar">
+        <label>Search runs<input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Run ID, agent, version, or error…" /></label>
+        <label>Status<select value={status} onChange={event=>setStatus(event.target.value)}><option value="ALL">All statuses</option><option value="RUNNING">Running</option><option value="COMPLETED">Completed</option><option value="FAILED">Failed</option><option value="CANCELLED">Cancelled</option><option value="TIMED_OUT">Timed out</option></select></label>
+        <span><b>{filtered.length}</b> of {runs.length} runs</span>
+      </div>
       {runs.length === 0 ? (
         <Empty title="No runs yet" />
+      ) : filtered.length===0 ? (
+        <Empty title="No runs match these filters" />
       ) : (
-        <table>
+        <div className="runs-table-wrap"><table className="runs-table">
           <thead>
             <tr>
               <th>Run</th>
+              <th>Session</th>
               <th>Agent version</th>
               <th>Status</th>
+              <th>Duration</th>
+              <th>Outcome</th>
               <th>Created</th>
             </tr>
           </thead>
           <tbody>
-            {runs.map((r) => (
-              <tr key={r.runId} className={selectedId===r.runId?"selected-run":""} onClick={()=>{setSelectedId(r.runId);void loadEvents(r.runId)}}>
+            {filtered.map((r) => (
+              <tr key={r.runId} tabIndex={0} aria-label={`Inspect run ${r.runId}`} className={selectedId===r.runId?"selected-run":""} onClick={()=>{setSelectedId(r.runId);void loadEvents(r.runId)}} onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();setSelectedId(r.runId);void loadEvents(r.runId)}}}>
                 <td>
                   <code>{r.runId.slice(0, 8)}</code>
                 </td>
+                <td><code>{(r.sessionId||r.runId).slice(0,8)}</code></td>
                 <td>
                   {r.agentId} · {r.agentVersion}
                 </td>
@@ -1795,22 +1827,61 @@ function RunsPage({
                     {r.status}
                   </span>
                 </td>
+                <td>{runDuration(r)}</td>
+                <td className={r.error?"run-list-error":"run-list-outcome"}>{r.error||runOutcome(r)}</td>
                 <td>{new Date(r.createdAt).toLocaleString()}</td>
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
-      {selected&&<section className="run-trace" aria-label={`Execution trace for run ${selected.runId}`}>
-        <div className="panel-title"><div><h3>Run trace</h3><code>{selected.runId}</code></div><span className={`status ${selected.status.toLowerCase()}`}>{selected.status}</span></div>
-        <div className="run-trace-summary"><span><b>Agent</b>{selected.agentId} · {selected.agentVersion}</span><span><b>Started</b>{new Date(selected.createdAt).toLocaleString()}</span><span><b>Calls and events</b>{events.length}</span></div>
-        {loading&&events.length===0?<p className="muted">Loading this run…</p>:events.length===0?<Empty title="No calls recorded for this run"/>:<div className="event-log run-event-group">{events.map(event=><article key={event.sequence}><i className={event.type.includes("failed")?"failed":""}/><div><b>{event.type}</b><time>{new Date(event.occurredAt).toLocaleTimeString()}</time>{Object.keys(event.attributes||{}).length>0&&<pre>{JSON.stringify(event.attributes,null,2)}</pre>}</div></article>)}</div>}
-        {selected.error&&<div className="agent-error"><b>Run failed</b><p>{selected.error}</p></div>}
-        {selected.status==="COMPLETED"&&<details className="run-output"><summary>Structured run output</summary><pre>{JSON.stringify(selected.output,null,2)}</pre></details>}
-      </section>}
+      </section>
+      {selected&&<RunInspector run={selected} sessionRuns={runs.filter(item=>(item.sessionId||item.runId)===(selected.sessionId||selected.runId)).sort((a,b)=>new Date(a.createdAt).getTime()-new Date(b.createdAt).getTime())} events={events} loading={loading} onSelectRun={runId=>{setSelectedId(runId);void loadEvents(runId)}}/>}
     </section>
   );
 }
+
+function RunInspector({run,sessionRuns,events,loading,onSelectRun}:{run:Run;sessionRuns:Run[];events:RunEvent[];loading:boolean;onSelectRun:(runId:string)=>void}){
+  const tools=runToolCalls(run,events);
+  const modelEvents=events.filter(event=>event.type.startsWith("model.")||event.type==="usage.recorded");
+  const usage=events.find(event=>event.type==="usage.recorded")?.attributes||{};
+  const dispatch=events.find(event=>event.type==="execution.dispatched")?.attributes||{};
+  const plan=events.find(event=>event.type==="agent.plan.completed")?.attributes||{};
+  const stages=buildRunStages(events,run);
+  const diagnosis=runDiagnosis(run,events);
+  return <section className="panel run-inspector" aria-label={`Execution diagnostics for run ${run.runId}`}>
+    <header className="run-inspector-header"><div><p className="eyebrow">RUN DIAGNOSTICS</p><h2>{run.agentId}</h2><div className="run-id-line"><code>{run.runId}</code><button onClick={()=>void navigator.clipboard.writeText(run.runId)}>Copy run ID</button></div></div><span className={`status ${run.status.toLowerCase()}`}>{run.status}</span></header>
+    <div className={`run-diagnosis ${run.status.toLowerCase()}`}><div><b>{diagnosis.title}</b><p>{diagnosis.summary}</p></div>{diagnosis.action&&<aside><b>Next check</b><span>{diagnosis.action}</span></aside>}</div>
+    <section className="run-section run-conversation"><div className="run-section-title"><div><h3>Message and session</h3><p>Sanitized input persisted with this run; select a related turn to inspect its complete trace.</p></div><code>{(run.sessionId||run.runId).slice(0,8)}</code></div><div className="run-message"><span>User input</span><pre>{prettyDiagnostic(run.input||{})}</pre></div>{sessionRuns.length>1&&<div className="session-turns" aria-label="Runs in this session">{sessionRuns.map((turn,index)=><button type="button" key={turn.runId} className={turn.runId===run.runId?"active":""} title={turn.runId} onClick={()=>onSelectRun(turn.runId)}><span>Turn {index+1}</span><b>{turn.runId.slice(0,8)}</b><em className={`status ${turn.status.toLowerCase()}`}>{turn.status}</em></button>)}</div>}</section>
+    <div className="run-metrics">
+      <article><span>Version</span><strong>{run.agentVersion}</strong><small>Pinned for this run</small></article>
+      <article><span>Duration</span><strong>{runDuration(run)}</strong><small>{run.startedAt?`Started ${new Date(run.startedAt).toLocaleTimeString()}`:"Not started"}</small></article>
+      <article><span>MCP calls</span><strong>{tools.length}</strong><small>{tools.filter(tool=>tool.cacheHit).length} cache hit(s)</small></article>
+      <article><span>Model calls</span><strong>{Number(usage.modelCalls||modelEvents.filter(event=>event.type==="model.completed").length)}</strong><small>{Number(usage.inputTokens||0)+Number(usage.outputTokens||0)} tokens</small></article>
+      <article><span>Placement</span><strong>{String(dispatch.placement||"Unknown")}</strong><small>{events.length} semantic events</small></article>
+    </div>
+    {loading&&events.length===0?<p className="muted">Loading diagnostic events…</p>:<>
+      <section className="run-section"><div className="run-section-title"><div><h3>What happened</h3><p>High-level execution stages and the last successful point.</p></div></div><div className="run-stage-list">{stages.map(stage=><article key={stage.key} className={stage.state.toLowerCase()}><i/><div><span>{stage.label}</span><b>{stage.state}</b><p>{stage.summary}</p><small>{stage.time}</small></div></article>)}</div></section>
+      <section className="run-section"><div className="run-section-title"><div><h3>Planner and routing</h3><p>Semantic decision summary—not private model reasoning.</p></div></div><div className="run-routing-grid"><article><span>Strategy</span><b>{String(plan.strategy||"Not recorded")}</b></article><article><span>Selected capabilities</span><b>{asStrings(plan.selectedCapabilities).join(" → ")||"None recorded"}</b></article><article><span>Planner decision</span><b>{String(plan.reason||"No semantic planner summary recorded")}</b></article><article><span>Execution placement</span><b>{String(dispatch.placement||"Not recorded")}</b></article></div></section>
+      <section className="run-section"><div className="run-section-title"><div><h3>MCP and tool calls</h3><p>Ordered sanitized requests, provider routing, responses, failures, and cache usage.</p></div><span>{tools.length} call(s)</span></div>{tools.length===0?<div className="run-empty"><b>No tool call recorded</b><p>Check whether the version has capabilities attached, the planner selected them, and an enabled healthy provider binding exists.</p></div>:<div className="tool-call-list">{tools.map((tool,index)=><article key={`${tool.capability}-${index}`}><header><span className="tool-index">{tool.iteration||index+1}</span><div><b>{tool.capability}</b><small>{tool.providerId} · {tool.transport}</small></div><em className={tool.failed?"failed":tool.cacheHit?"cache":"remote"}>{tool.failed?"FAILED":tool.cacheHit?"CACHE HIT":"REMOTE"}</em></header>{tool.request!==undefined&&<details><summary>Tool request</summary><pre>{prettyDiagnostic(tool.request)}</pre></details>}{tool.output!==undefined&&<details><summary>Tool response</summary><pre>{prettyDiagnostic(tool.output)}</pre></details>}{tool.error&&<div className="tool-error">{tool.error}</div>}</article>)}</div>}</section>
+      <section className="run-section"><div className="run-section-title"><div><h3>Model and usage</h3><p>Model identity, provider, tokens, and estimated cost captured by the gateway.</p></div></div>{modelEvents.length===0?<div className="run-empty"><b>No model call recorded</b><p>The run may have failed before synthesis or completed using only configured tools.</p></div>:<div className="model-call-list">{modelEvents.map(event=><article key={event.sequence}><div><b>{eventLabel(event.type)}</b><small>{new Date(event.occurredAt).toLocaleTimeString()}</small></div><pre>{prettyDiagnostic(event.attributes)}</pre></article>)}</div>}</section>
+      {run.status==="COMPLETED"&&<section className="run-section"><div className="run-section-title"><div><h3>Final output</h3><p>The persisted structured response returned to the workspace.</p></div></div><details className="run-output" open><summary>Structured response</summary><pre>{prettyDiagnostic(run.output)}</pre></details></section>}
+      <section className="run-section raw-events"><details><summary>Raw semantic event log ({events.length})</summary>{events.length===0?<p className="muted">No events were recorded.</p>:<div className="event-log run-event-group">{events.map(event=><article key={event.sequence}><i className={event.type.includes("failed")?"failed":""}/><div><b>#{event.sequence} · {event.type}</b><time>{new Date(event.occurredAt).toLocaleTimeString()}</time>{Object.keys(event.attributes||{}).length>0&&<pre>{prettyDiagnostic(event.attributes)}</pre>}</div></article>)}</div>}</details></section>
+    </>}
+  </section>
+}
+
+function runDuration(run:Run){const start=new Date(run.startedAt||run.createdAt).getTime();const end=run.completedAt?new Date(run.completedAt).getTime():run.status==="RUNNING"?Date.now():start;const value=Math.max(0,end-start);return value>=60_000?`${(value/60_000).toFixed(1)}m`:value>=1000?`${(value/1000).toFixed(1)}s`:`${value}ms`}
+function runOutcome(run:Run){if(run.status==="COMPLETED")return "Response completed";if(run.status==="RUNNING")return "Execution in progress";if(run.status==="CANCELLED")return "Stopped by request";if(run.status==="TIMED_OUT")return "Deadline exceeded";return "Awaiting execution"}
+function eventLabel(type:string){return ({"run.created":"Run created","run.started":"Agent started","execution.dispatched":"Execution dispatched","mcp.pipeline.started":"Tool pipeline started","agent.analysis.started":"Analysis started","agent.plan.completed":"Plan selected","tool.completed":"Tool completed","model.completed":"Model response completed","agent.analysis.completed":"Response assembled","usage.recorded":"Usage recorded","mcp.pipeline.completed":"Tool pipeline completed","run.completed":"Run completed","run.failed":"Run failed","run.cancelled":"Run cancelled","grounding.failed":"Grounding failed"} as Record<string,string>)[type]||type.replaceAll("."," ")}
+function asRecord(value:unknown):Record<string,unknown>{return value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{}}
+function asStrings(value:unknown){return Array.isArray(value)?value.map(String):[]}
+function redactDiagnostic(value:unknown,depth=0):unknown{if(depth>7)return "[depth limited]";if(Array.isArray(value))return value.slice(0,50).map(item=>redactDiagnostic(item,depth+1));if(value&&typeof value==="object"){const result:Record<string,unknown>={};Object.entries(value as Record<string,unknown>).slice(0,100).forEach(([key,item])=>{result[key]=/^(token|access.?token|refresh.?token|password|secret|authorization|api.?key|credential|credentials)$/i.test(key)?"••••••••":redactDiagnostic(item,depth+1)});return result}if(typeof value==="string"&&value.length>8000)return `${value.slice(0,8000)}… [truncated]`;return value}
+function prettyDiagnostic(value:unknown){try{return JSON.stringify(redactDiagnostic(value),null,2)}catch{return String(value)}}
+type ToolDiagnostic={iteration:number;capability:string;providerId:string;transport:string;cacheHit:boolean;failed?:boolean;request?:unknown;output?:unknown;error?:string};
+function runToolCalls(run:Run,events:RunEvent[]):ToolDiagnostic[]{const traceEvents=events.filter(event=>event.type==="tool.completed"||event.type==="tool.failed");if(traceEvents.length)return traceEvents.map((event,index)=>({iteration:Number(event.attributes.iteration||index+1),capability:String(event.attributes.capability||"unknown.tool"),providerId:String(event.attributes.providerId||"unresolved provider"),transport:String(event.attributes.transport||"not recorded"),cacheHit:Boolean(event.attributes.cacheHit),failed:event.type==="tool.failed",request:event.attributes.request,output:event.attributes.response,error:event.attributes.error?String(event.attributes.error):undefined}));const outputSteps=Array.isArray(run.output?.toolResults)?run.output.toolResults:[];return outputSteps.map((value,index)=>{const item=asRecord(value);return {iteration:Number(item.iteration||index+1),capability:String(item.capability||"unknown.tool"),providerId:String(item.providerId||"unknown provider"),transport:String(item.transport||"unknown transport"),cacheHit:Boolean(item.cacheHit),request:item.request,output:item.output}})}
+function runDiagnosis(run:Run,events:RunEvent[]){if(run.status==="FAILED"){const failedEvent=[...events].reverse().find((event:RunEvent)=>event.type.includes("failed"));const error=run.error||String(failedEvent?.attributes?.error||"Execution stopped before a detailed error was recorded.");let action="Open the raw events and inspect the last successful stage.";if(/provider profile|bound/i.test(error))action="Configure, verify, and enable a provider plus binding for every selected capability.";else if(/modelId|required|model connection/i.test(error))action="Select a concrete model in the logical model profile and verify its connection.";else if(/Docker|image|worker/i.test(error))action="Build the runtime worker with ./start.sh and inspect Docker dispatch/cleanup.";else if(/Invalid URL|Include an? HTTP/i.test(error))action="Include a complete http:// or https:// URL in the agent message. The browser MCP now extracts it from chat input automatically.";else if(/URL host|allow/i.test(error))action="Check the public-host policy and confirm the target does not resolve to a private or metadata address.";else if(/grounding|evidence|tool result/i.test(error))action="Confirm the planner selected an attached capability and that the provider returned evidence.";return {title:"Run failed",summary:error,action}}if(run.status==="COMPLETED")return {title:"Run completed",summary:`The agent returned a persisted response after ${runToolCalls(run,events).length} tool call(s).`,action:"Review tool evidence and model usage below to confirm the response was grounded."};if(run.status==="CANCELLED")return {title:"Run cancelled",summary:"Execution was stopped before a normal response completed.",action:"Confirm any isolated worker was removed and retry only if the task is still needed."};return {title:"Run is active",summary:"Live events will update this view as execution progresses.",action:"If progress stops, inspect the last stage and provider health."}}
+function buildRunStages(events:RunEvent[],run:Run){const definitions=[{key:"created",label:"Created",matches:["run.created"],complete:["run.created"]},{key:"dispatch",label:"Dispatched",matches:["run.started","execution.dispatched"],complete:["execution.dispatched"]},{key:"planning",label:"Planned",matches:["agent.analysis.started","agent.plan.completed"],complete:["agent.plan.completed"]},{key:"tools",label:"Tools",matches:["mcp.pipeline.started","tool.completed","mcp.pipeline.completed","grounding.failed"],complete:["mcp.pipeline.completed"]},{key:"model",label:"Model",matches:["model.completed","agent.analysis.completed","usage.recorded"],complete:["agent.analysis.completed","usage.recorded"]},{key:"terminal",label:"Finished",matches:["run.completed","run.failed","run.cancelled"],complete:["run.completed","run.failed","run.cancelled"]}];const terminal=run.status==="FAILED"?"FAILED":run.status==="CANCELLED"?"CANCELLED":run.status==="COMPLETED"?"COMPLETED":"RUNNING";const lastStageWithActivity=definitions.reduce((latest,definition,index)=>events.some(event=>definition.matches.includes(event.type))?index:latest,-1);return definitions.map((definition,index)=>{const matches=events.filter(event=>definition.matches.includes(event.type));const last=matches[matches.length-1];const progress=asRecord(last?.attributes?.progress);const explicitlyFailed=matches.some(event=>event.type.includes("failed"));const completed=matches.some(event=>definition.complete.includes(event.type));const state=definition.key==="terminal"?terminal:explicitlyFailed?"FAILED":completed?"COMPLETED":matches.length?(terminal==="RUNNING"?"RUNNING":"INTERRUPTED"):index===lastStageWithActivity+1&&terminal==="RUNNING"?"RUNNING":"NOT RUN";return {key:definition.key,label:definition.label,state,summary:String(progress.summary||progress.title||(matches.length?matches.map(event=>eventLabel(event.type)).join(" · "):"No event recorded for this stage")),time:last?new Date(last.occurredAt).toLocaleTimeString():"—"}})}
 function ObservabilityPage() {
   const ranges = [
     ["1m", "Last 1 minute"], ["15m", "Last 15 minutes"], ["1h", "Last hour"],
@@ -3169,11 +3240,27 @@ function ModelProfileModal({
     </div>
   );
 }
+function GuardrailsPage({guardrails,reload,onNotice}:{guardrails:Guardrail[];reload:()=>Promise<void>;onNotice:(value:string)=>void}){
+  const [editing,setEditing]=React.useState<Guardrail|null>(null);const [creating,setCreating]=React.useState(false);
+  async function remove(g:Guardrail){if(!window.confirm(`Delete ${g.displayName}? Existing immutable agent versions retain the reference but it will no longer resolve.`))return;await api(`/api/v1/guardrails/${encodeURIComponent(g.guardrailId)}`,{method:"DELETE"});onNotice(`${g.displayName} deleted.`);await reload();}
+  return <section className="panel"><div className="panel-title guardrail-catalog-title"><div><h2>Guardrail catalog</h2><p>Organization-scoped controls available to every agent builder.</p></div><button className="primary" onClick={()=>setCreating(true)}>New guardrail</button></div>{guardrails.length===0?<Empty title="No guardrails configured"/>:<div className="guardrail-grid">{guardrails.map(g=><article key={g.guardrailId}><div><span className={`status ${g.enabled?"ACTIVE":"DISABLED"}`}>{g.enabled?"ENABLED":"DISABLED"}</span><h3>{g.displayName}</h3><p>{g.description}</p><small>{g.guardrailType} · {g.enforcement} · {g.phase}</small></div><div className="actions"><button onClick={()=>setEditing(g)}>Edit</button><button className="danger" onClick={()=>void remove(g)}>Delete</button></div></article>)}</div>}{(creating||editing)&&<GuardrailModal guardrail={editing} close={()=>{setCreating(false);setEditing(null)}} saved={async(name,wasEditing)=>{setCreating(false);setEditing(null);onNotice(`${name} ${wasEditing?"updated":"created"}.`);await reload();}}/>}</section>;
+}
+
+type GuardrailForm={guardrailId:string;displayName:string;description:string;guardrailType:string;enforcement:Guardrail["enforcement"];phase:Guardrail["phase"];instruction:string;configuration:string;enabled:boolean};
+function GuardrailModal({guardrail,close,saved}:{guardrail:Guardrail|null;close:()=>void;saved:(name:string,editing:boolean)=>Promise<void>}){
+  const initial:GuardrailForm=guardrail?{guardrailId:guardrail.guardrailId,displayName:guardrail.displayName,description:guardrail.description,guardrailType:guardrail.guardrailType,enforcement:guardrail.enforcement,phase:guardrail.phase,instruction:guardrail.instruction,configuration:JSON.stringify(guardrail.configuration,null,2),enabled:guardrail.enabled}:{guardrailId:"",displayName:"",description:"",guardrailType:"POLICY",enforcement:"BLOCK",phase:"BOTH",instruction:"",configuration:"{}",enabled:true};
+  const [form,setForm]=React.useState<GuardrailForm>(initial);const [busy,setBusy]=React.useState(false);const [failure,setFailure]=React.useState("");
+  const change=<K extends keyof GuardrailForm>(key:K,value:GuardrailForm[K])=>setForm(current=>({...current,[key]:value}));
+  async function submit(e:React.FormEvent){e.preventDefault();setBusy(true);setFailure("");try{let configuration:Record<string,unknown>;try{configuration=JSON.parse(form.configuration) as Record<string,unknown>;}catch{throw new Error("Configuration must be valid JSON.");}await api(guardrail?`/api/v1/guardrails/${encodeURIComponent(guardrail.guardrailId)}`:"/api/v1/guardrails",{method:guardrail?"PUT":"POST",body:JSON.stringify({...form,configuration})});await saved(form.displayName,!!guardrail);}catch(error){setFailure(error instanceof Error?error.message:String(error));}finally{setBusy(false);}}
+  return <div className="backdrop"><form className="modal guardrail-modal" onSubmit={submit}><div className="panel-title"><div><p className="eyebrow">POLICY CONTROL</p><h2>{guardrail?"Edit guardrail":"Create guardrail"}</h2></div><button type="button" aria-label="Close guardrail editor" onClick={close}>×</button></div><p className="modal-intro">Define when the control runs, how violations are handled, and the runtime instruction supplied to the agent.</p><div className="form-grid guardrail-identity"><label>Guardrail ID<input required disabled={!!guardrail} value={form.guardrailId} onChange={e=>change("guardrailId",e.target.value)} placeholder="customer-data-policy"/><small>Stable logical identifier</small></label><label>Display name<input required value={form.displayName} onChange={e=>change("displayName",e.target.value)}/></label></div><div className="form-grid guardrail-policy-row"><label>Type<select value={form.guardrailType} onChange={e=>change("guardrailType",e.target.value)}><option>POLICY</option><option>PROMPT_INJECTION</option><option>DATA_PROTECTION</option><option>GROUNDING</option><option>CONTENT_SAFETY</option><option>TOOL_POLICY</option><option>COST_LIMIT</option></select></label><label>Enforcement<select value={form.enforcement} onChange={e=>change("enforcement",e.target.value as Guardrail["enforcement"])}><option>BLOCK</option><option>WARN</option><option>REDACT</option></select></label><label>Execution phase<select value={form.phase} onChange={e=>change("phase",e.target.value as Guardrail["phase"])}><option>INPUT</option><option>TOOL</option><option>OUTPUT</option><option>BOTH</option></select></label></div><label>Description<textarea value={form.description} onChange={e=>change("description",e.target.value)} placeholder="Explain what this guardrail protects and when to use it."/></label><label>Runtime instruction<textarea required value={form.instruction} onChange={e=>change("instruction",e.target.value)} placeholder="Define mandatory behavior in clear, testable language."/><small>Used as a declarative constraint. Security-critical enforcement must also be implemented at the runtime boundary.</small></label><label>Advanced configuration · JSON<textarea className="mono" required value={form.configuration} onChange={e=>change("configuration",e.target.value)}/><small>Adapter-specific settings, such as categories, thresholds, blocked operations, or evidence requirements.</small></label><label className="checkbox-row"><input type="checkbox" checked={form.enabled} onChange={e=>change("enabled",e.target.checked)}/> Enabled and available to agent builders</label>{failure&&<div className="notice error">{failure}</div>}<div className="actions"><button type="button" onClick={close}>Cancel</button><button className="primary" disabled={busy}>{busy?"Saving…":guardrail?"Save changes":"Create guardrail"}</button></div></form></div>;
+}
+
 function AgentModal({
   editing,
   agents,
   capabilities,
   availableSkills,
+  availableGuardrails,
   profiles,
   defaultModel,
   close,
@@ -3183,6 +3270,7 @@ function AgentModal({
   agents: Agent[];
   capabilities: Capability[];
   availableSkills: Skill[];
+  availableGuardrails: Guardrail[];
   profiles: ModelProfile[];
   defaultModel: string;
   close: () => void;
@@ -3204,6 +3292,7 @@ function AgentModal({
       : usableProfiles[0]?.profileId || "",
   );
   const [selectedSkills, setSelectedSkills] = React.useState<string[]>([]);
+  const [selectedGuardrails, setSelectedGuardrails] = React.useState<string[]>([]);
   const [selected, setSelected] = React.useState<string[]>([]);
   const [pipeline, setPipeline] = React.useState<string[]>([]);
   const [members, setMembers] = React.useState<string[]>([]);
@@ -3314,6 +3403,7 @@ function AgentModal({
               decodeURIComponent(v.promptRef.slice(7)),
             ) as { skills: string[]; order: string[] };
             setSelectedSkills(plan.skills || []);
+            setSelectedGuardrails((plan as {guardrails?:string[]}).guardrails || []);
             setPipeline(plan.order || v.toolCapabilitiesRequired || []);
           } catch {}
         } else if (v.promptRef?.startsWith("skills://")) {
@@ -3382,6 +3472,7 @@ function AgentModal({
         : pipeline;
       const plan = {
         skills: selectedSkills,
+        guardrails: selectedGuardrails,
         order: orderedPipeline,
         llmPolicy: "PLAN_THEN_SYNTHESIZE",
         maxModelCalls: 2,
@@ -3655,6 +3746,18 @@ function AgentModal({
                   <b>{skill.displayName}</b>
                   <small>{skill.description}</small>
                 </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Guardrails</legend>
+          <p className="muted">Attached controls become part of this immutable agent version and are loaded by the runtime.</p>
+          <div className="capability-picker skill-picker">
+            {availableGuardrails.filter(g=>g.enabled).map((guardrail) => (
+              <label key={guardrail.guardrailId}>
+                <input type="checkbox" checked={selectedGuardrails.includes(guardrail.reference)} onChange={()=>setSelectedGuardrails(values=>values.includes(guardrail.reference)?values.filter(v=>v!==guardrail.reference):[...values,guardrail.reference])}/>
+                <span><b>{guardrail.displayName}</b><small>{guardrail.enforcement} · {guardrail.phase} — {guardrail.description}</small></span>
               </label>
             ))}
           </div>
@@ -4246,6 +4349,7 @@ function Playground({
         ? '{"category":"electronics","question":"Which products are available?"}'
         : '{"question":"How can you help me?"}';
   const [input, setInput] = React.useState(defaultInput);
+  const sessionId = React.useRef(crypto.randomUUID());
   const [runId, setRunId] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [failure, setFailure] = React.useState("");
@@ -4258,6 +4362,7 @@ function Playground({
         method: "POST",
         body: JSON.stringify({
           agentId: agent.id,
+          sessionId: sessionId.current,
           input: JSON.parse(input),
           subjectId: "studio-user",
           scopes: ["agents:invoke"],

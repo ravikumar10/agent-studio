@@ -24,6 +24,8 @@ This directory is the operational source for rebuilding the current implementati
 18. `17-ai-coding-prompts.md` — phase-scoped prompts and checkpoint rules for Codex or Claude Code.
 19. `18-contract-and-file-inventory.md` — modules, services, APIs, migrations, and required files.
 20. `RECOVERY_PROGRESS.template.md` — resumable, secret-free handoff record for reconstruction sessions.
+21. `19-agent-mcp-operations-sop.md` — operator SOP for publishing MCP registry artifacts, configuring providers, creating agents, and running/troubleshooting them.
+22. `20-guardrails.md` — organization-scoped guardrail CRUD, agent bindings, runtime resolution, and verification.
 
 ## Reconstruction command for a coding agent
 
