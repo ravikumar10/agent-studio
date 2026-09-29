@@ -16,16 +16,22 @@
 
 ## Invocation flow
 
-1. Studio posts `StartRunRequest` to `/api/v1/runs` with tenant/user headers.
-2. Runtime resolves the requested or active immutable `AgentVersion`.
-3. A run row and `run.created` event are committed before execution.
-4. Placement resolves to in-process, Docker, or Kubernetes intent.
-5. The runtime adapter performs bounded planning.
-6. Logical capabilities resolve through per-agent provider bindings.
-7. Tool outputs become grounded evidence; the model synthesizes the final response.
-8. Semantic tool/model/usage events are stored with the same `run_id`.
-9. Run output/status is persisted and broadcast over SSE.
-10. Studio shows the final response in chat and the complete trace in Runs.
+1. Studio or a published endpoint posts `StartRunRequest` to `/api/v1/runs` with tenant/subject context and an optional `sessionId`.
+2. Runtime resolves the requested or active immutable `AgentVersion`, validates session ownership, and freezes an observable configuration snapshot for the run.
+3. PostgreSQL provides bounded prior turns/evidence; Redis may satisfy the same session projection as a disposable hot cache.
+4. A run row and `run.created`, `agent.configuration.frozen`, and `session.context.loaded` events are committed around startup.
+5. Placement resolves to in-process, Docker, or Kubernetes intent.
+6. The configured model receives the fixed initial prompt, current message, bounded session context, registry-pinned skills, and only the capabilities attached to that agent version.
+7. The bounded planner decides which attached tools are useful and in what valid order; it cannot invent or dynamically attach capabilities.
+8. Logical capabilities resolve through per-agent provider bindings. Tool outputs become grounded evidence and may be reused from the session when sufficient.
+9. The model synthesizes one final response from the current request and grounded evidence.
+10. Semantic tool/model/usage/session events are stored with the same `run_id`; assistant/error turns and tool evidence are persisted under the session.
+11. Run output/status is persisted and broadcast over SSE.
+12. Studio/widget shows the final response; Runs shows the complete trace and Observability aggregates calls, tokens, latency, and cost.
+
+## Public invocation flow
+
+Publishing an agent version stores `agent_public_exposures`. `PublicAgentController` resolves the opaque `publicId`, verifies origin and optional `X-Agent-API-Key`, pins the configured agent version, and forwards the invocation to runtime-service. `/widget/{publicId}` serves a responsive same-origin chat client and exposes an attachment picker only when the pinned agent declares a `document.*` capability. Public calls still use the normal run/session ledger, budgets, provider bindings, guardrails, and observability.
 
 ## Dependency rules
 

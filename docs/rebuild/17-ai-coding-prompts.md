@@ -28,6 +28,12 @@ Implement phases 1 and the control-plane portion of the recovery guide. Define f
 Implement phases 2 and 3. Add a runtime service with run/event ledger, active-version resolution and pinning, async execution, cancellation, SSE, semantic events, bounded agent loop, logical model profile resolution, mock provider, OpenAI/Anthropic/OpenAI-compatible adapters, backend credential verification, usage/cost capture, timeout/fallback, and one standard rich response envelope. Never persist hidden reasoning. Add contract and service tests.
 ```
 
+### Durable sessions and public delivery
+
+```text
+Implement durable conversational sessions and public agent delivery without changing the core invocation contract. PostgreSQL is authoritative for tenant/agent/subject-bound sessions, turns, and sanitized deduplicated tool evidence; Redis is only a TTL hot projection. Freeze the immutable version configuration into semantic run events. Add opaque version-pinned public trigger endpoints and responsive widgets with origin enforcement, optional hashed API-key authentication for endpoint-only use, attachment input for document-capable agents, and normal run/session/observability correlation. Add Flyway migrations, backend tests, UI configuration, Nginx routing, and Redis-loss recovery tests. Do not expose secrets or chain-of-thought.
+```
+
 ### Capabilities and MCP
 
 ```text

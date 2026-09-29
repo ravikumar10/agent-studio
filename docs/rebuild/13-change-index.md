@@ -26,6 +26,12 @@ Use this index to locate the code that implements each major increment. Paths ar
 | Docker worker cleanup | `runtime-service/IsolatedWorkerClient.java` | runtime configuration | terminal and cancelled containers removed |
 | One-command local operation | root `start.sh`, Compose/Dockerfiles | Compose environment and volumes | clean Docker host startup |
 | Registry artifact promotion | `RegistryController.java`, `RegistryPromotionService.java`, registry UI | `V29__registry_artifact_promotion.sql` | Sync → Pull → Promote; generated integration schema; disabled provider |
+| Run/session input correlation | runtime run store/controllers and Runs UI | `V30__run_sessions_and_inputs.sql` | session/input persistence and trace grouping |
+| Slack agent invocation | Slack MCP/event handler and runtime invocation path | `V31__slack_agent_invocation.sql` through `V33__slack_event_deduplication.sql` | mention parsing, risk correction, duplicate-event rejection |
+| Organization guardrails | guardrail controller/resolver, Agent Builder, runtime policy enforcement | `V34__organization_guardrails.sql` | CRUD, version binding, denial events, edit dialog |
+| Public endpoints and widgets | `PublicAgentController.java`, `AgentRuntimeConfigurationController.java`, Studio publishing form, Nginx `/widget/` route | `V35__agent_public_exposures.sql` | opaque ID, pinned version, API key/origin checks, iframe and attachment input |
+| Durable session context | `SessionContextService.java`, `RunService.java`, planner/model prompt assembly | `V36__durable_agent_sessions.sql` | PostgreSQL recovery, Redis hot hit, ownership, bounded evidence reuse |
+| Model cost repair | `ModelGateway.java`, `ObservabilityController.java`, Observability UI | `V37__model_pricing_and_usage_cost_backfill.sql` | profile rates, usage event cost, historical backfill, USD rendering |
 
 ## Files to inspect before modifying a feature
 

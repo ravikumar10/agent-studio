@@ -202,6 +202,16 @@ type AgentRuntimeConfig = {
   triggerConfiguration: Record<string, unknown>;
   resourceConfiguration: Record<string, unknown>;
   capabilityProfiles: Record<string, string>;
+  exposureConfiguration: {
+    enabled?: boolean;
+    apiEnabled?: boolean;
+    widgetEnabled?: boolean;
+    accessMode?: "PUBLIC" | "API_KEY";
+    publicId?: string;
+    endpointUrl?: string;
+    widgetUrl?: string;
+    allowedOrigins?: string[];
+  };
 };
 type ObservabilitySummary = {
   generatedAt: string;
@@ -3315,6 +3325,7 @@ function AgentModal({
   );
   const [selectedSkills, setSelectedSkills] = React.useState<string[]>([]);
   const [selectedGuardrails, setSelectedGuardrails] = React.useState<string[]>([]);
+  const [initialPrompt, setInitialPrompt] = React.useState("Execute the configured workflow in order. Use tool results as the only factual source and produce a clear final response.");
   const [selected, setSelected] = React.useState<string[]>([]);
   const [pipeline, setPipeline] = React.useState<string[]>([]);
   const [members, setMembers] = React.useState<string[]>([]);
@@ -3342,6 +3353,13 @@ function AgentModal({
   );
   const [cron, setCron] = React.useState("0 */6 * * *");
   const [eventSource, setEventSource] = React.useState("");
+  const [exposed, setExposed] = React.useState(false);
+  const [apiEnabled, setApiEnabled] = React.useState(true);
+  const [widgetEnabled, setWidgetEnabled] = React.useState(false);
+  const [accessMode, setAccessMode] = React.useState<"PUBLIC" | "API_KEY">("PUBLIC");
+  const [exposureApiKey, setExposureApiKey] = React.useState("");
+  const [allowedOrigins, setAllowedOrigins] = React.useState("*");
+  const [publishedUrls, setPublishedUrls] = React.useState<{endpointUrl?:string;widgetUrl?:string}>({});
   const modelMissing = !!model && !profiles.some((p) => p.profileId === model);
   React.useEffect(() => {
     api<CapabilityBinding[]>("/api/v1/capability-providers/bindings")
@@ -3417,16 +3435,23 @@ function AgentModal({
               String(c.triggerConfiguration?.cronExpression || "0 */6 * * *"),
             );
             setEventSource(String(c.triggerConfiguration?.source || ""));
+            setExposed(Boolean(c.exposureConfiguration?.enabled));
+            setApiEnabled(c.exposureConfiguration?.apiEnabled !== false);
+            setWidgetEnabled(Boolean(c.exposureConfiguration?.widgetEnabled));
+            setAccessMode(c.exposureConfiguration?.accessMode || "PUBLIC");
+            setAllowedOrigins((c.exposureConfiguration?.allowedOrigins || ["*"]).join(", "));
+            setPublishedUrls({endpointUrl:c.exposureConfiguration?.endpointUrl,widgetUrl:c.exposureConfiguration?.widgetUrl});
           })
           .catch(() => {});
         if (v.promptRef?.startsWith("plan://")) {
           try {
             const plan = JSON.parse(
               decodeURIComponent(v.promptRef.slice(7)),
-            ) as { skills: string[]; order: string[] };
+            ) as { skills: string[]; order: string[]; initialPrompt?: string };
             setSelectedSkills(plan.skills || []);
             setSelectedGuardrails((plan as {guardrails?:string[]}).guardrails || []);
             setPipeline(plan.order || v.toolCapabilitiesRequired || []);
+            setInitialPrompt(plan.initialPrompt || "Execute the configured workflow in order. Use tool results as the only factual source and produce a clear final response.");
           } catch {}
         } else if (v.promptRef?.startsWith("skills://")) {
           try {
@@ -3493,6 +3518,7 @@ function AgentModal({
           ]
         : pipeline;
       const plan = {
+        initialPrompt: initialPrompt.trim(),
         skills: selectedSkills,
         guardrails: selectedGuardrails,
         order: orderedPipeline,
@@ -3550,6 +3576,14 @@ function AgentModal({
                 ? { memory: "lightweight" }
                 : { replicas: 1, cpu: "500m", memory: "512Mi" },
             capabilityProfiles: selectedProfiles,
+            exposureConfiguration: {
+              enabled: exposed,
+              apiEnabled,
+              widgetEnabled,
+              accessMode,
+              apiKey: exposureApiKey || undefined,
+              allowedOrigins: allowedOrigins.split(",").map(value=>value.trim()).filter(Boolean),
+            },
           }),
         },
       );
@@ -3683,6 +3717,11 @@ function AgentModal({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
+        </label>
+        <label>
+          Initial agent prompt
+          <textarea required value={initialPrompt} onChange={(e) => setInitialPrompt(e.target.value)} placeholder="Define the fixed role, objective, and response expectations for this agent." />
+          <small>This prompt is stored with the immutable agent version and applied to every run. Chat messages provide runtime inputs; they do not change the configured tools.</small>
         </label>
         <div className="form-grid contract-grid">
           <label>
@@ -3905,6 +3944,27 @@ function AgentModal({
             applied from Deployments. Trigger configuration is versioned with
             the agent.
           </small>
+        </fieldset>
+        <fieldset>
+          <legend>Endpoint and widget publishing</legend>
+          <label className="checkbox-row">
+            <input type="checkbox" checked={exposed} onChange={e=>setExposed(e.target.checked)}/>
+            Publish this agent version for external use
+          </label>
+          {exposed && <>
+            <div className="form-grid">
+              <label className="checkbox-row"><input type="checkbox" checked={apiEnabled} onChange={e=>setApiEnabled(e.target.checked)}/> Trigger API endpoint</label>
+              <label className="checkbox-row"><input type="checkbox" checked={widgetEnabled} onChange={e=>{setWidgetEnabled(e.target.checked);if(e.target.checked)setAccessMode("PUBLIC")}}/> Embeddable chat widget</label>
+              <label>Access policy<select value={accessMode} disabled={widgetEnabled} onChange={e=>setAccessMode(e.target.value as "PUBLIC"|"API_KEY")}><option value="PUBLIC">Public</option><option value="API_KEY">API key</option></select></label>
+              {accessMode === "API_KEY" && <label>API key<input required={!publishedUrls.endpointUrl} type="password" value={exposureApiKey} onChange={e=>setExposureApiKey(e.target.value)} placeholder={publishedUrls.endpointUrl?"Leave blank to keep current key":"Enter a strong key"}/></label>}
+              <label>Allowed embed / CORS origins<input value={allowedOrigins} onChange={e=>setAllowedOrigins(e.target.value)} placeholder="https://portal.example.com"/><small>Comma-separated origins; use * only for intentionally public agents.</small></label>
+            </div>
+            {(publishedUrls.endpointUrl||publishedUrls.widgetUrl) && <div className="publish-endpoints">
+              {apiEnabled&&publishedUrls.endpointUrl&&<label>Endpoint URL<input readOnly value={`${window.location.origin}${publishedUrls.endpointUrl}`}/></label>}
+              {widgetEnabled&&publishedUrls.widgetUrl&&<label>Widget URL<input readOnly value={`${window.location.origin}${publishedUrls.widgetUrl}`}/><small>{`<iframe src="${window.location.origin}${publishedUrls.widgetUrl}" title="${name}"></iframe>`}</small></label>}
+            </div>}
+            <small>A random URL is generated for every immutable version. Each request creates its own run; provide a sessionId to preserve chat context.</small>
+          </>}
         </fieldset>
         {pipeline.length > 0 && (
           <PipelineEditor

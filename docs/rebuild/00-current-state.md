@@ -14,7 +14,11 @@
 - HTTP reader, headless browser, database reader, Redis/memory, chart, and email capability definitions.
 - Public HTTP(S) web access by default with localhost/private/link-local/metadata targets blocked.
 - Chat/task workspace with rich Markdown, tables, charts, images, code, files, and notices.
+- Fixed initial prompts and ordered tool/skill/guardrail configuration stored with immutable agent versions; runtime messages cannot mutate the attached tool set.
+- Durable agent sessions in PostgreSQL with a rebuildable Redis hot projection, bounded prior turns, deduplicated grounded evidence, and tenant/agent/subject ownership checks.
+- Optional per-agent public trigger endpoints and embeddable chat widgets with stable random public IDs, CORS/origin controls, API-key hashing, attachment upload for document-capable agents, and normal run/event correlation.
 - Per-run event storage, SSE updates, cancellation, Docker worker cleanup, Runs trace UI, and aggregate observability.
+- Source-dated model pricing, token/call usage events, historical zero-cost backfill for configured GPT-4.1 and Claude Sonnet 4.6 profiles, and cost display from 1 minute through 30 days.
 - Local Docker Compose topology and one-command `start.sh`.
 - Repository registry discovery, bounded artifact download, and explicit promotion for AGENT, MCP, and SKILL artifacts.
 - Organization-scoped integration types generated from promoted MCP JSON configuration schemas.
@@ -27,6 +31,8 @@
 - Kubernetes plans can be generated and stored; applying to a real cluster requires a deployment adapter/credential implementation.
 - Redis semantic/vector concepts exist, but production embedding/index management is not complete.
 - Email is represented as a governed MCP capability; a production server and delivery approval workflow must be configured.
+- Public endpoints/widgets currently use control-plane proxying to runtime-service. Production ingress, rate limiting, abuse controls, API-key rotation UX, and externally managed identity remain hardening work.
+- Durable sessions use bounded recent-turn/evidence retrieval. Semantic vector retrieval, summarization/compaction, explicit close/retention APIs, and long-running workflow recovery remain future work.
 
 ## Not yet operational
 

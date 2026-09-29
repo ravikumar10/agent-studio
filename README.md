@@ -64,6 +64,10 @@ then execute one prompt at a time from
 [`docs/rebuild/17-ai-coding-prompts.md`](docs/rebuild/17-ai-coding-prompts.md).
 The module/API/migration checklist is in
 [`docs/rebuild/18-contract-and-file-inventory.md`](docs/rebuild/18-contract-and-file-inventory.md).
+For a new chat or coding-agent handoff, read the current secret-free checkpoint in
+[`docs/rebuild/RECOVERY_PROGRESS.md`](docs/rebuild/RECOVERY_PROGRESS.md) before
+editing. It records the branch, uncommitted slices, migrations, verification
+evidence, and remaining checks that conversation history would otherwise lose.
 
 ## Implementation philosophy
 Do **not** build another agent framework. Build a control plane, stable execution harness, framework adapters, governed capability gateway, durable workflow integration, deployment/runtime management, and enterprise governance.

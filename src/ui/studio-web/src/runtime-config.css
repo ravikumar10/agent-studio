@@ -1,3 +1,6 @@
 .integration-binding-list { display: grid; gap: 10px; }
 .integration-binding-list label { grid-template-columns: minmax(180px, 1fr) minmax(220px, 1fr); align-items: center; }
 @media (max-width: 760px) { .integration-binding-list label { grid-template-columns: 1fr; } }
+.publish-endpoints { display:grid; gap:12px; margin-top:14px; padding:14px; border-radius:12px; background:#f1f5f1; }
+.publish-endpoints input { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; }
+.publish-endpoints small { overflow-wrap:anywhere; }
