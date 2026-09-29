@@ -3553,7 +3553,10 @@ function AgentModal({
           }),
         },
       );
-      if (mode === "compose" || editing?.status === "ACTIVE") {
+      const hasUnconfiguredTools = selected.some(
+        (capability) => !boundCapabilityIds.has(capability),
+      );
+      if (!hasUnconfiguredTools && (mode === "compose" || editing?.status === "ACTIVE")) {
         await api(`/api/v1/agents/${id}/versions/${versionNumber}/validate`, {
           method: "POST",
         });
@@ -3562,7 +3565,9 @@ function AgentModal({
         });
       }
       saved(
-        editing
+        hasUnconfiguredTools
+          ? `${name} saved as version ${versionNumber}. Configure and enable the selected tool providers before activation.`
+          : editing
           ? `${name} updated and activated as version ${versionNumber}.`
           : `Agent ${versionNumber} created with named integrations and ${placement.toLowerCase()} placement.`,
       );
@@ -3804,17 +3809,16 @@ function AgentModal({
             {visible.map((c) => {
               const configured = boundCapabilityIds.has(c.capabilityId) || selected.includes(c.capabilityId);
               return (
-              <label key={c.capabilityId} className={configured ? "" : "disabled-option"}>
+              <label key={c.capabilityId}>
                 <input
                   type="checkbox"
-                  disabled={!configured}
                   checked={selected.includes(c.capabilityId)}
                   onChange={() => toggle(c.capabilityId)}
                 />
                 <span>
                   <b>{c.displayName || c.capabilityId}</b>
                   <small>{c.description || c.capabilityId}</small>
-                  {!configured && <small>Configure and enable its provider in Capabilities before attaching it.</small>}
+                  {!configured && <small>You can attach this tool now. Configure and enable its provider before running the agent.</small>}
                 </span>
               </label>
             )})}
@@ -3843,7 +3847,7 @@ function AgentModal({
                   >
                     <option value="">Automatic healthy provider</option>
                     {providerBindings
-                      .filter((candidate) => candidate.capabilityId === capability)
+                      .filter((candidate) => candidate.capabilityId === capability && candidate.enabled)
                       .map((candidate) => (
                         <option
                           key={candidate.providerId}
