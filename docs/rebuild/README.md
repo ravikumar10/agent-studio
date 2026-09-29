@@ -29,6 +29,7 @@ This directory is the operational source for rebuilding the current implementati
 23. `21-new-relic-and-document-ocr.md` — registry-driven New Relic and OCR MCP tools, skills, attachments, safety, and verification.
 24. `../35-agent-endpoints-and-widgets.md` — external trigger APIs, widgets, origin/API-key controls, sessions, and attachment behavior.
 25. `RECOVERY_PROGRESS.md` — current secret-free handoff snapshot for a new coding session, when present.
+26. `../36-moving-to-a-new-laptop.md` — source/state/secret backup, safe encryption-key identification, restore, and verification.
 
 ## Reconstruction command for a coding agent
 
