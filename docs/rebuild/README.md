@@ -26,6 +26,7 @@ This directory is the operational source for rebuilding the current implementati
 20. `RECOVERY_PROGRESS.template.md` — resumable, secret-free handoff record for reconstruction sessions.
 21. `19-agent-mcp-operations-sop.md` — operator SOP for publishing MCP registry artifacts, configuring providers, creating agents, and running/troubleshooting them.
 22. `20-guardrails.md` — organization-scoped guardrail CRUD, agent bindings, runtime resolution, and verification.
+23. `21-new-relic-and-document-ocr.md` — registry-driven New Relic and OCR MCP tools, skills, attachments, safety, and verification.
 
 ## Reconstruction command for a coding agent
 

@@ -13,6 +13,6 @@ final class RunTraceSanitizer {
         if(value instanceof String text)return text.length()>12_000?text.substring(0,12_000)+"… [truncated]":text;
         return value;
     }
-    private static boolean sensitive(String key){return key.toLowerCase(Locale.ROOT).matches(".*(password|secret|credential|authorization|api.?key|access.?token|refresh.?token).*");}
+    private static boolean sensitive(String key){return key.toLowerCase(Locale.ROOT).matches(".*(password|secret|credential|authorization|api.?key|access.?token|refresh.?token|base64|binary|file.?bytes|document.?bytes).*");}
     @SuppressWarnings("unchecked") private static Map<String,Object> cast(Map<?,?> value){return (Map<String,Object>)value;}
 }

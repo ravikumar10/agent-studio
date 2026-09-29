@@ -31,6 +31,8 @@ class AgentLoopPlanner {
         if(text.contains("http://")||text.contains("https://")||contains(text,"website","webpage","url")){add(result,available,"web.fetch","web.extract","browser.navigate","browser.extract","http.request");}
         if(contains(text,"database","sql","table","schema","record","product","inventory"))for(String value:available)if(value.contains("database")||value.contains("postgres")||value.contains("mysql")||value.contains("oracle")||value.contains("sqlserver")||value.contains("mongodb"))result.add(value);
         if(contains(text,"redis","cache","memory"))for(String value:available)if(value.startsWith("redis."))result.add(value);
+        if(contains(text,"new relic","newrelic","nrql","apm","telemetry","incident","latency","error rate"))add(result,available,"newrelic.entities.search","newrelic.nrql.query");
+        if(contains(text,"ocr","scan","scanned","pdf","document","image","invoice","receipt"))add(result,available,"document.metadata.extract","document.ocr.extract");
         if(contains(text,"chart","graph","plot","visual"))add(result,available,"chart.generate");
         if(contains(text,"slack"))add(result,available,"slack.messages.send");
         if(contains(text,"email","mail","send","deliver","share"))add(result,available,"email.draft","email.send");
@@ -38,7 +40,7 @@ class AgentLoopPlanner {
         return result;
     }
     private Collection<String> dataCapabilities(String text,Set<String> available){LinkedHashSet<String> result=new LinkedHashSet<>();if(text.contains("http")||contains(text,"web","url"))add(result,available,"web.fetch","web.extract","browser.navigate","browser.extract","http.request");for(String value:available)if(value.endsWith(".query-readonly")||value.endsWith(".find-readonly"))result.add(value);return result;}
-    private Collection<String> explicitRequirements(String text,Set<String> available){LinkedHashSet<String> result=new LinkedHashSet<>();if(contains(text,"chart","graph","plot","visual"))add(result,available,"chart.generate");if(text.contains("slack")&&contains(text,"send","post","share","deliver","notify","report","message"))add(result,available,"slack.messages.send");if(contains(text,"email","mail")&&contains(text,"send","share","deliver"))add(result,available,"email.send");return result;}
+    private Collection<String> explicitRequirements(String text,Set<String> available){LinkedHashSet<String> result=new LinkedHashSet<>();if(contains(text,"chart","graph","plot","visual"))add(result,available,"chart.generate");if(contains(text,"new relic","newrelic","nrql"))add(result,available,"newrelic.nrql.query");if(contains(text,"ocr","scan","scanned","pdf","document","image","invoice","receipt"))add(result,available,"document.ocr.extract");if(text.contains("slack")&&contains(text,"send","post","share","deliver","notify","report","message"))add(result,available,"slack.messages.send");if(contains(text,"email","mail")&&contains(text,"send","share","deliver"))add(result,available,"email.send");return result;}
     private static void add(Set<String> target,Set<String> available,String... values){for(String value:values)if(available.contains(value))target.add(value);}
     private static boolean contains(String text,String... values){return Arrays.stream(values).anyMatch(text::contains);}
     record Plan(List<String> capabilities,Map<String,Map<String,Object>> arguments,String strategy,String reason,ModelGateway.ModelResult modelUsage){}

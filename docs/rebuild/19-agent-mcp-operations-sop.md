@@ -88,8 +88,11 @@ Run implementation tests, confirm declared operations exist, scan the image, and
 2. Select **Connect GitHub repository**.
 3. Enter a stable Registry ID, display name, repository URL, and branch/reference.
 4. Select one registry type: **MCP**, **SKILL**, or **AGENT**.
-5. Save the registry.
-6. Connect the same repository again for the other required artifact types. Each registry connection filters one type.
+5. Select the branch or tag that contains the catalog. For a private GitHub repository, enter a fine-grained token with **Contents: Read** access. The control plane encrypts this token and never returns it to the UI.
+6. Save the registry.
+7. Connect the same repository again for the other required artifact types. Each registry connection filters one type.
+
+For an existing private connection, use **Private access** on the registry card to replace its token, then run **Sync** again. A GitHub 404 for a repository that exists normally means the repository is private and the connection has no valid token, or the configured branch does not exist.
 
 For the sample repository, create separate MCP, skill, and agent connections pointing at the same GitHub repository.
 
@@ -271,7 +274,7 @@ For chat-capable agents, send the next message in the same workspace. Redis hot 
 
 | Symptom | Likely cause | Corrective action |
 |---|---|---|
-| Artifact not visible after Sync | Wrong registry type, branch, catalog path, or GitHub access | Verify source and connect one registry per artifact type; Sync again |
+| Artifact not visible after Sync | Wrong registry type, branch, catalog path, or GitHub access | Verify source and connect one registry per artifact type; for private repositories update **Private access** with a fine-grained token that has **Contents: Read**, then Sync again |
 | Promote unavailable | Artifact not pulled | Pull the selected artifact first |
 | Generated integration has only URL/health | Artifact was pulled before schema support or manifest lacks `configurationSchema` | Fix manifest/schema, Sync, Pull again, Promote again |
 | Capability missing in Agent Builder | Artifact not promoted or provider binding absent | Promote; reload catalogs; inspect provider bindings |

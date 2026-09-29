@@ -678,6 +678,8 @@ function capabilityFamilyName(value: string) {
     chart: "Charts and graphs",
     knowledge: "Conversation knowledge",
     email: "Email and delivery",
+    document: "Documents and OCR",
+    newrelic: "New Relic observability",
   };
   return names[value] || value.replaceAll("-", " ").replace(/^./, (character) => character.toUpperCase());
 }
@@ -1336,6 +1338,7 @@ function RegistryPage({
 }) {
   const [type, setType] = React.useState("ALL");
   const [adding, setAdding] = React.useState(false);
+  const [credentialRegistry, setCredentialRegistry] = React.useState<Registry | null>(null);
   const [selected, setSelected] = React.useState("");
   const [artifacts, setArtifacts] = React.useState<Artifact[]>([]);
   const [busy, setBusy] = React.useState("");
@@ -1466,6 +1469,7 @@ function RegistryPage({
               {r.syncError && <small>{r.syncError}</small>}
               <footer>
                 <button onClick={() => removeRegistry(r)}>Delete</button>
+                <button onClick={() => setCredentialRegistry(r)}>Private access</button>
                 <button onClick={() => show(r)}>Artifacts</button>
                 <button
                   className="primary"
@@ -1548,6 +1552,7 @@ function RegistryPage({
           }}
         />
       )}
+      {credentialRegistry && <RegistryCredentialModal registry={credentialRegistry} close={()=>setCredentialRegistry(null)} saved={async()=>{setCredentialRegistry(null);await reload();onNotice("Private GitHub access updated. Sync the registry to refresh artifacts.");}}/>}
     </>
   );
 }
@@ -1563,6 +1568,8 @@ function RegistryModal({
   );
   const [type, setType] = React.useState<"AGENT" | "MCP" | "SKILL">("AGENT");
   const [name, setName] = React.useState("");
+  const [branch, setBranch] = React.useState("main");
+  const [accessToken, setAccessToken] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -1580,10 +1587,11 @@ function RegistryModal({
           sourceUri: url,
           owner,
           metadata: {
-            branch: "main",
+            branch,
             manifest: "catalog.json",
             syncMode: "MANUAL",
           },
+          accessToken: accessToken || undefined,
         }),
       });
       saved();
@@ -1621,6 +1629,15 @@ function RegistryModal({
           </select>
         </label>
         <label>
+          Branch or tag
+          <input required value={branch} onChange={(e)=>setBranch(e.target.value)} />
+        </label>
+        <label>
+          GitHub token for private repository
+          <input type="password" autoComplete="new-password" value={accessToken} onChange={(e)=>setAccessToken(e.target.value)} placeholder="Optional for public repositories" />
+          <small>Stored encrypted and never returned to the browser.</small>
+        </label>
+        <label>
           Display name
           <input
             value={name}
@@ -1643,6 +1660,11 @@ function RegistryModal({
       </form>
     </div>
   );
+}
+function RegistryCredentialModal({registry,close,saved}:{registry:Registry;close:()=>void;saved:()=>void}){
+  const [accessToken,setAccessToken]=React.useState("");const [busy,setBusy]=React.useState(false);
+  async function submit(event:React.FormEvent){event.preventDefault();setBusy(true);try{await api("/api/v1/registries/"+registry.registryId+"/credential",{method:"PUT",body:JSON.stringify({accessToken})});saved()}finally{setBusy(false)}}
+  return <div className="backdrop"><form className="modal" onSubmit={submit}><div className="panel-title"><div><p className="eyebrow">PRIVATE REGISTRY</p><h2>Configure GitHub access</h2></div><button type="button" onClick={close}>×</button></div><p>{registry.displayName}</p><label>Fine-grained GitHub token<input required type="password" autoComplete="new-password" value={accessToken} onChange={event=>setAccessToken(event.target.value)} /></label><small>The token needs Contents: Read access to this repository. It is encrypted at rest and never returned.</small><div className="actions"><button type="button" onClick={close}>Cancel</button><button className="primary" disabled={busy||!accessToken.trim()}>{busy?"Saving…":"Save private access"}</button></div></form></div>
 }
 function MemoryPage({ onNotice }: { onNotice: (v: string) => void }) {
   const [ns, setNs] = React.useState("agent-session");
@@ -3531,7 +3553,10 @@ function AgentModal({
           }),
         },
       );
-      if (mode === "compose" || editing?.status === "ACTIVE") {
+      const hasUnconfiguredTools = selected.some(
+        (capability) => !boundCapabilityIds.has(capability),
+      );
+      if (!hasUnconfiguredTools && (mode === "compose" || editing?.status === "ACTIVE")) {
         await api(`/api/v1/agents/${id}/versions/${versionNumber}/validate`, {
           method: "POST",
         });
@@ -3540,7 +3565,9 @@ function AgentModal({
         });
       }
       saved(
-        editing
+        hasUnconfiguredTools
+          ? `${name} saved as version ${versionNumber}. Configure and enable the selected tool providers before activation.`
+          : editing
           ? `${name} updated and activated as version ${versionNumber}.`
           : `Agent ${versionNumber} created with named integrations and ${placement.toLowerCase()} placement.`,
       );
@@ -3551,9 +3578,7 @@ function AgentModal({
   const boundCapabilityIds = new Set(
     providerBindings.filter((binding) => binding.enabled).map((binding) => binding.capabilityId),
   );
-  const relevantCapabilities = capabilities.filter(
-    (capability) => boundCapabilityIds.has(capability.capabilityId) || selected.includes(capability.capabilityId),
-  );
+  const relevantCapabilities = capabilities;
   const families = Array.from(new Set(relevantCapabilities.map((capability) => capability.capabilityId.split(".")[0]))).sort();
   const intent = `${name} ${description}`.toLowerCase();
   const recommendedFamilies = new Set<string>();
@@ -3564,6 +3589,8 @@ function AgentModal({
   if (/chart|graph|visualize|plot/.test(intent)) recommendedFamilies.add("chart");
   if (/email|mail|send.*chart|share.*chart/.test(intent)) recommendedFamilies.add("email");
   if (/slack|channel|send.*message|post.*message/.test(intent)) recommendedFamilies.add("slack");
+  if (/document|ocr|pdf|image|scan|attachment/.test(intent)) recommendedFamilies.add("document");
+  if (/new relic|newrelic|observability|incident|metric|log|trace|nrql/.test(intent)) recommendedFamilies.add("newrelic");
   if (/chat|conversation|follow-up|knowledge|remember/.test(intent)) recommendedFamilies.add("knowledge");
   if (interaction !== "TASK") recommendedFamilies.add("knowledge");
   const visible = relevantCapabilities.filter(
@@ -3778,8 +3805,10 @@ function AgentModal({
             <span>{selected.length} selected</span>
           </div>
           <div className="capability-picker">
-            {visible.length === 0 && <p className="muted">No configured MCP tools match this family. Add and bind a provider in MCP Capabilities first.</p>}
-            {visible.map((c) => (
+            {visible.length === 0 && <p className="muted">No MCP tools match this family.</p>}
+            {visible.map((c) => {
+              const configured = boundCapabilityIds.has(c.capabilityId) || selected.includes(c.capabilityId);
+              return (
               <label key={c.capabilityId}>
                 <input
                   type="checkbox"
@@ -3789,9 +3818,10 @@ function AgentModal({
                 <span>
                   <b>{c.displayName || c.capabilityId}</b>
                   <small>{c.description || c.capabilityId}</small>
+                  {!configured && <small>You can attach this tool now. Configure and enable its provider before running the agent.</small>}
                 </span>
               </label>
-            ))}
+            )})}
           </div>
         </fieldset>
         {selected.length > 0 && (
@@ -3817,7 +3847,7 @@ function AgentModal({
                   >
                     <option value="">Automatic healthy provider</option>
                     {providerBindings
-                      .filter((candidate) => candidate.capabilityId === capability)
+                      .filter((candidate) => candidate.capabilityId === capability && candidate.enabled)
                       .map((candidate) => (
                         <option
                           key={candidate.providerId}
