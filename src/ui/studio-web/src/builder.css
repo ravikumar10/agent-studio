@@ -95,6 +95,11 @@
 .chat-composer { display: grid; grid-template-columns: 1fr auto auto; gap: 9px; align-items: end; }
 .chat-composer textarea { min-height: 58px; max-height: 150px; resize: vertical; }
 .chat-composer button { min-height: 44px; }
+.chat-attachment { display: flex; align-items: center; gap: 10px; min-height: 38px; color: var(--muted); }
+.chat-attachment .attachment-button { display: inline-flex; align-items: center; width: auto; padding: 8px 12px; border: 1px solid #cfd8cf; border-radius: 9px; background: #fff; color: var(--ink); cursor: pointer; font-weight: 700; }
+.chat-attachment input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.chat-attachment span { display: inline-flex; align-items: center; gap: 4px; }
+.chat-attachment span button { border: 0; background: transparent; padding: 2px 6px; font-size: 18px; }
 .danger { border-color: #e6b8b0; color: #9a3028; background: #fff5f3; }
 .console-output { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; min-height: 230px; }
 .console-output > section { min-width: 0; padding: 16px; border: 1px solid #dfe4de; border-radius: 10px; }

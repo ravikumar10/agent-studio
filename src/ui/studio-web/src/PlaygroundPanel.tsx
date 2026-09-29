@@ -6,6 +6,7 @@ import embed, {type Result as VegaResult} from 'vega-embed';
 type Agent = { id:string; displayName:string; interactionMode?:'TASK'|'CHAT'|'TASK_AND_CHAT'; topology?:'SINGLE_AGENT'|'MULTI_AGENT' };
 type Run = { runId:string; agentId:string; agentVersion:string; status:string; createdAt:string; output:Record<string,unknown>; error?:string };
 type Message = { role:'user'|'assistant'; text:string; output?:Record<string,unknown> };
+type Attachment = { filename:string; contentType:string; base64Content:string; size:number };
 
 function chartSpecs(value:unknown):any[] {
   if(value&&typeof value==='object'){
@@ -65,6 +66,7 @@ export default function PlaygroundPanel({agent,tenantId,subjectId,close,onCatalo
   const [streamState,setStreamState]=React.useState<'connecting'|'live'|'retrying'>('connecting');
   const [busy,setBusy]=React.useState(false);
   const [failure,setFailure]=React.useState('');
+  const [attachment,setAttachment]=React.useState<Attachment|null>(null);
   const runIdRef=React.useRef('');
 
   React.useEffect(()=>{
@@ -88,13 +90,14 @@ export default function PlaygroundPanel({agent,tenantId,subjectId,close,onCatalo
   },[run,onCatalogChanged]);
 
   async function execute(){
-    const message=prompt.trim();
+    const message=prompt.trim()||(attachment?'Extract and analyze the attached document.':'');
     if(!message)return;
     setBusy(true);setFailure('');setRun(null);
     try{
-      const input={message,conversation:messages};
+      const input={message,conversation:messages,...(attachment?{filename:attachment.filename,contentType:attachment.contentType,base64Content:attachment.base64Content}: {})};
       setMessages(current=>[...current,{role:'user',text:message}]);
       setPrompt('');
+      setAttachment(null);
       const response=await fetch('/api/v1/runs',{method:'POST',headers,body:JSON.stringify({agentId:agent.id,input,subjectId,scopes:['agents:invoke'],async:true})});
       if(!response.ok)throw new Error(`${response.status} ${await response.text()}`);
       const started=await response.json() as Run;
@@ -110,6 +113,13 @@ export default function PlaygroundPanel({agent,tenantId,subjectId,close,onCatalo
     if(!run)return;
     const response=await fetch(`/api/v1/runs/${run.runId}/cancel`,{method:'POST',headers});
     if(!response.ok&&response.status!==409)setFailure(`${response.status} ${await response.text()}`);
+  }
+
+  async function attach(file:File|undefined){
+    if(!file){setAttachment(null);return}
+    if(file.size>10*1024*1024){setFailure('Attachment exceeds the 10 MB Studio upload limit.');return}
+    const encoded=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',').at(-1)||'');reader.onerror=()=>reject(reader.error);reader.readAsDataURL(file)});
+    setFailure('');setAttachment({filename:file.name,contentType:file.type||'application/octet-stream',base64Content:encoded,size:file.size});
   }
 
   async function closeConsole(){
@@ -129,7 +139,8 @@ export default function PlaygroundPanel({agent,tenantId,subjectId,close,onCatalo
     </div>
 
     <div className="chat-shell"><div className="chat-messages">{messages.length===0?<div className="chat-empty">{isCreator?'Try: Create a chat agent called Sales SQL Assistant that reads PostgreSQL and uses SQL safety.':isWebsite?'Try: Read https://example.com and summarize the page.':isDatabase?'Try: Which electronics products are available?':taskOnly?'Describe the task and include every input the agent needs.':'Describe what you want the agent to do, including any inputs it needs.'}</div>:messages.map((message,index)=><article className={`chat-message ${message.role} ${message.output?'rich':''}`} key={index}><b>{message.role==='user'?'You':agent.displayName}</b>{message.output?<RichResponse output={message.output} text={message.text}/>:<p>{message.text}</p>}</article>)}</div></div>
-    <div className="chat-composer"><textarea aria-label={taskOnly?'Task input':'Message agent'} placeholder={isWebsite?'Include the website URL and your question…':isDatabase?'Ask about products or include a category…':taskOnly?'Describe the task and all required inputs…':'Message the agent…'} value={prompt} onChange={event=>setPrompt(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();void execute()}}}/><button className="primary" disabled={busy||!!active||!prompt.trim()} onClick={execute}>{busy?'Starting…':taskOnly?'Run':'Send'}</button><button className="danger" disabled={!active} onClick={stop}>Stop</button></div>
+    <div className="chat-attachment"><label className="attachment-button">Attach image or document<input type="file" accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt" onChange={event=>void attach(event.target.files?.[0])}/></label>{attachment&&<span><b>{attachment.filename}</b> · {(attachment.size/1024).toFixed(1)} KB <button aria-label="Remove attachment" onClick={()=>setAttachment(null)}>×</button></span>}</div>
+    <div className="chat-composer"><textarea aria-label={taskOnly?'Task input':'Message agent'} placeholder={isWebsite?'Include the website URL and your question…':isDatabase?'Ask about products or include a category…':taskOnly?'Describe the task and all required inputs…':'Message the agent…'} value={prompt} onChange={event=>setPrompt(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();void execute()}}}/><button className="primary" disabled={busy||!!active||(!prompt.trim()&&!attachment)} onClick={execute}>{busy?'Starting…':taskOnly?'Run':'Send'}</button><button className="danger" disabled={!active} onClick={stop}>Stop</button></div>
 
     {failure&&<div className="notice error">{failure}</div>}
   </section>
