@@ -9,6 +9,7 @@
 **/dist/
 *.log
 backups/
+*.agent-studio-transfer.tar.gz
 
 # Independently versioned registry repository.
 src/examples/github-registry/

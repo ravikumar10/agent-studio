@@ -16,6 +16,32 @@ Redis is a disposable hot projection/cache. Durable conversational turns and evi
 
 Never commit database dumps, plaintext keys, tokens, `.env` files, or credential exports to Git.
 
+## Recommended one-command transfer
+
+The repository includes `laptop-transfer.sh`, which performs the manual steps in this runbook and validates the result.
+
+On the old laptop:
+
+```bash
+./laptop-transfer.sh backup /path/to/encrypted-external-storage
+```
+
+This produces one owner-only `agent-studio-transfer-YYYYMMDD-HHMMSS.tar.gz` archive containing the main PostgreSQL dump, manifest, exact running encryption key, source metadata, checksums, and the sample database when it is running. The archive is sensitive even though database credentials are encrypted.
+
+On the new laptop, after cloning the repository:
+
+```bash
+./laptop-transfer.sh restore /path/to/agent-studio-transfer-YYYYMMDD-HHMMSS.tar.gz
+```
+
+The restore command validates every checksum, restores a new empty `agent-studio` PostgreSQL volume, supplies the recovered key to the services, builds the images, and starts the application. It refuses to overwrite an initialized target. Use `--force` only when the target database is known to be disposable:
+
+```bash
+./laptop-transfer.sh restore /path/to/agent-studio-transfer-YYYYMMDD-HHMMSS.tar.gz --force
+```
+
+The detailed manual procedures below remain the troubleshooting and audit reference.
+
 ## 1. Confirm the source is remote
 
 From the repository root:
