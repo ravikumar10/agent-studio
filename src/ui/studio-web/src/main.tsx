@@ -678,6 +678,8 @@ function capabilityFamilyName(value: string) {
     chart: "Charts and graphs",
     knowledge: "Conversation knowledge",
     email: "Email and delivery",
+    document: "Documents and OCR",
+    newrelic: "New Relic observability",
   };
   return names[value] || value.replaceAll("-", " ").replace(/^./, (character) => character.toUpperCase());
 }
@@ -3571,9 +3573,7 @@ function AgentModal({
   const boundCapabilityIds = new Set(
     providerBindings.filter((binding) => binding.enabled).map((binding) => binding.capabilityId),
   );
-  const relevantCapabilities = capabilities.filter(
-    (capability) => boundCapabilityIds.has(capability.capabilityId) || selected.includes(capability.capabilityId),
-  );
+  const relevantCapabilities = capabilities;
   const families = Array.from(new Set(relevantCapabilities.map((capability) => capability.capabilityId.split(".")[0]))).sort();
   const intent = `${name} ${description}`.toLowerCase();
   const recommendedFamilies = new Set<string>();
@@ -3584,6 +3584,8 @@ function AgentModal({
   if (/chart|graph|visualize|plot/.test(intent)) recommendedFamilies.add("chart");
   if (/email|mail|send.*chart|share.*chart/.test(intent)) recommendedFamilies.add("email");
   if (/slack|channel|send.*message|post.*message/.test(intent)) recommendedFamilies.add("slack");
+  if (/document|ocr|pdf|image|scan|attachment/.test(intent)) recommendedFamilies.add("document");
+  if (/new relic|newrelic|observability|incident|metric|log|trace|nrql/.test(intent)) recommendedFamilies.add("newrelic");
   if (/chat|conversation|follow-up|knowledge|remember/.test(intent)) recommendedFamilies.add("knowledge");
   if (interaction !== "TASK") recommendedFamilies.add("knowledge");
   const visible = relevantCapabilities.filter(
@@ -3798,20 +3800,24 @@ function AgentModal({
             <span>{selected.length} selected</span>
           </div>
           <div className="capability-picker">
-            {visible.length === 0 && <p className="muted">No configured MCP tools match this family. Add and bind a provider in MCP Capabilities first.</p>}
-            {visible.map((c) => (
-              <label key={c.capabilityId}>
+            {visible.length === 0 && <p className="muted">No MCP tools match this family.</p>}
+            {visible.map((c) => {
+              const configured = boundCapabilityIds.has(c.capabilityId) || selected.includes(c.capabilityId);
+              return (
+              <label key={c.capabilityId} className={configured ? "" : "disabled-option"}>
                 <input
                   type="checkbox"
+                  disabled={!configured}
                   checked={selected.includes(c.capabilityId)}
                   onChange={() => toggle(c.capabilityId)}
                 />
                 <span>
                   <b>{c.displayName || c.capabilityId}</b>
                   <small>{c.description || c.capabilityId}</small>
+                  {!configured && <small>Configure and enable its provider in Capabilities before attaching it.</small>}
                 </span>
               </label>
-            ))}
+            )})}
           </div>
         </fieldset>
         {selected.length > 0 && (
