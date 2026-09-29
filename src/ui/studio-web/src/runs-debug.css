@@ -1,0 +1,24 @@
+.run-debug-trace { padding-top: 0; border-top: 0; }
+.run-debug-trace > details { border: 1px solid #cbdcd1; border-radius: 12px; background: #f7fbf8; overflow: hidden; }
+.run-debug-trace > details > summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 17px; cursor: pointer; list-style: none; }
+.run-debug-trace > details > summary::-webkit-details-marker { display: none; }
+.run-debug-trace > details > summary::before { content: "+"; display: grid; place-items: center; flex: 0 0 24px; width: 24px; height: 24px; border-radius: 50%; background: #dfeee4; color: #286848; font-weight: 900; }
+.run-debug-trace > details[open] > summary::before { content: "−"; }
+.run-debug-trace > details > summary > span { display: grid; flex: 1; gap: 3px; }
+.run-debug-trace > details > summary b { font-size: 14px; }
+.run-debug-trace > details > summary small { color: #738078; font-size: 10px; font-weight: 500; }
+.run-debug-trace > details > summary em { color: #607068; font-size: 10px; font-style: normal; font-weight: 750; }
+.debug-trace-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 14px 14px; }
+.debug-trace-grid article { min-width: 0; border: 1px solid #dce5df; border-radius: 10px; background: #fff; overflow: hidden; }
+.debug-trace-grid article > header { display: flex; align-items: center; gap: 9px; padding: 11px 12px; }
+.debug-trace-grid article > header > span { display: grid; place-items: center; flex: 0 0 24px; width: 24px; height: 24px; border-radius: 50%; background: #e8f3eb; color: #2f6d4c; font: 800 10px ui-monospace, monospace; }
+.debug-trace-grid article > header > div { display: grid; gap: 2px; }
+.debug-trace-grid article > header b { font-size: 11px; }
+.debug-trace-grid article > header small { color: #7b867f; font-size: 9px; }
+.debug-trace-grid pre { max-height: 360px; margin: 0; padding: 12px; overflow: auto; background: #13251e; color: #dcece3; font: 10px/1.55 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.debug-trace-grid .debug-service-events { grid-column: 1 / -1; }
+.debug-trace-grid .debug-service-events pre { max-height: 520px; }
+@media (max-width: 760px) {
+  .debug-trace-grid { grid-template-columns: 1fr; }
+  .debug-trace-grid .debug-service-events { grid-column: auto; }
+}

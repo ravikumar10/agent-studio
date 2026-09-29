@@ -27,4 +27,10 @@ class ModelGatewayPromptTest {
         String prompt=gateway.prompt(Map.of("message","Where did it originate?","sessionEvidence",List.of(evidence),"toolResults",List.of()));
         assertThat(prompt).contains("previousSessionEvidence","document.ocr-extract","Shipment origin: Shenzhen");
     }
+
+    @Test void planningPromptMakesFixedObjectiveAuthoritativeAndRequiresCompleteChain(){
+        ModelGateway gateway=new ModelGateway(null,new ObjectMapper(),null,null);
+        String prompt=gateway.planningPromptForTest(Map.of("message","Extract and analyze the attached document.","attachedCapabilities",List.of("document.ocr.extract","cargoes.shipments.create"),"attachedSkills",List.of(Map.of("id","agent-initial-prompt","content","Parse the image and create shipment"))));
+        assertThat(prompt).contains("does not override the fixed agent objective").contains("There is no later planning pass").contains("cargoes.shipments.create");
+    }
 }
