@@ -10,6 +10,7 @@ import "./runtime-config.css";
 import "./observability.css";
 import "./runs.css";
 import "./runs-session.css";
+import "./runs-debug.css";
 import "./guardrails.css";
 import PlaygroundPanel from "./PlaygroundPanel";
 
@@ -1807,6 +1808,7 @@ function RunsPage({
   const filtered=runs.filter(run=>(status==="ALL"||run.status===status)&&(!query.trim()||`${run.runId} ${run.sessionId||""} ${run.agentId} ${run.agentVersion} ${run.error||""} ${JSON.stringify(run.input||{})}`.toLowerCase().includes(query.trim().toLowerCase())));
   const loadEvents=React.useCallback(async(id:string)=>{if(!id)return;setLoading(true);try{setEvents(await api<RunEvent[]>(`/api/v1/runs/${id}/events`))}finally{setLoading(false)}},[]);
   React.useEffect(()=>{if(selectedId&&!runs.some(run=>run.runId===selectedId)){setSelectedId("");setEvents([])}},[runs,selectedId]);
+  React.useEffect(()=>{if(!selectedId)return;const frame=window.requestAnimationFrame(()=>document.querySelector(".run-inspector")?.scrollIntoView({behavior:"smooth",block:"start"}));return()=>window.cancelAnimationFrame(frame)},[selectedId]);
   React.useEffect(()=>{if(!selectedId)return;void loadEvents(selectedId);const source=new EventSource(`/api/v1/runs/stream?tenantId=${encodeURIComponent(tenant)}`);source.addEventListener("run-event",event=>{const value=JSON.parse((event as MessageEvent).data) as {runId:string};if(value.runId===selectedId)void loadEvents(selectedId)});source.addEventListener("run",event=>{const value=JSON.parse((event as MessageEvent).data) as {run:Run};if(value.run.runId===selectedId)void loadEvents(selectedId)});return()=>source.close()},[selectedId,loadEvents]);
   return (
     <section className="runs-page">
@@ -1875,6 +1877,7 @@ function RunsPage({
 
 function RunInspector({run,sessionRuns,events,loading,onSelectRun}:{run:Run;sessionRuns:Run[];events:RunEvent[];loading:boolean;onSelectRun:(runId:string)=>void}){
   const tools=runToolCalls(run,events);
+  const frozenConfiguration=events.find(event=>event.type==="agent.configuration.frozen")?.attributes||{};
   const modelEvents=events.filter(event=>event.type.startsWith("model.")||event.type==="usage.recorded");
   const usage=events.find(event=>event.type==="usage.recorded")?.attributes||{};
   const dispatch=events.find(event=>event.type==="execution.dispatched")?.attributes||{};
@@ -1893,6 +1896,13 @@ function RunInspector({run,sessionRuns,events,loading,onSelectRun}:{run:Run;sess
       <article><span>Placement</span><strong>{String(dispatch.placement||"Unknown")}</strong><small>{events.length} semantic events</small></article>
     </div>
     {loading&&events.length===0?<p className="muted">Loading diagnostic events…</p>:<>
+      <section className="run-section run-debug-trace"><details open><summary><span><b>Debug trace</b><small>Frozen configuration, planner output, exact sanitized tool traffic, upstream responses, and correlated service events</small></span><em>{events.length} events</em></summary><div className="debug-trace-grid">
+        <article><header><span>1</span><div><b>Frozen agent configuration</b><small>Immutable version and bindings used by this run</small></div></header><pre>{prettyDiagnostic(frozenConfiguration)}</pre></article>
+        <article><header><span>2</span><div><b>Planner output</b><small>Semantic decision summary; private chain-of-thought is never stored</small></div></header><pre>{prettyDiagnostic(plan)}</pre></article>
+        <article><header><span>3</span><div><b>Exact tool requests</b><small>Requests captured at the provider boundary with credentials and binary content removed</small></div></header><pre>{prettyDiagnostic(tools.map(tool=>({iteration:tool.iteration,capability:tool.capability,providerId:tool.providerId,transport:tool.transport,request:tool.request})))}</pre></article>
+        <article><header><span>4</span><div><b>Upstream responses</b><small>Sanitized MCP results or the recorded upstream failure</small></div></header><pre>{prettyDiagnostic(tools.map(tool=>({iteration:tool.iteration,capability:tool.capability,status:tool.failed?"FAILED":"COMPLETED",response:tool.output,error:tool.error})))}</pre></article>
+        <article className="debug-service-events"><header><span>5</span><div><b>Correlated service log</b><small>Structured runtime events stored under run ID {run.runId}</small></div></header><pre>{prettyDiagnostic(events.map(event=>({sequence:event.sequence,time:event.occurredAt,service:"runtime-service",event:event.type,attributes:event.attributes})))}</pre></article>
+      </div></details></section>
       <section className="run-section"><div className="run-section-title"><div><h3>What happened</h3><p>High-level execution stages and the last successful point.</p></div></div><div className="run-stage-list">{stages.map(stage=><article key={stage.key} className={stage.state.toLowerCase()}><i/><div><span>{stage.label}</span><b>{stage.state}</b><p>{stage.summary}</p><small>{stage.time}</small></div></article>)}</div></section>
       <section className="run-section"><div className="run-section-title"><div><h3>Planner and routing</h3><p>Semantic decision summary—not private model reasoning.</p></div></div><div className="run-routing-grid"><article><span>Strategy</span><b>{String(plan.strategy||"Not recorded")}</b></article><article><span>Selected capabilities</span><b>{asStrings(plan.selectedCapabilities).join(" → ")||"None recorded"}</b></article><article><span>Planner decision</span><b>{String(plan.reason||"No semantic planner summary recorded")}</b></article><article><span>Execution placement</span><b>{String(dispatch.placement||"Not recorded")}</b></article></div></section>
       <section className="run-section"><div className="run-section-title"><div><h3>MCP and tool calls</h3><p>Ordered sanitized requests, provider routing, responses, failures, and cache usage.</p></div><span>{tools.length} call(s)</span></div>{tools.length===0?<div className="run-empty"><b>No tool call recorded</b><p>Check whether the version has capabilities attached, the planner selected them, and an enabled healthy provider binding exists.</p></div>:<div className="tool-call-list">{tools.map((tool,index)=><article key={`${tool.capability}-${index}`}><header><span className="tool-index">{tool.iteration||index+1}</span><div><b>{tool.capability}</b><small>{tool.providerId} · {tool.transport}</small></div><em className={tool.failed?"failed":tool.cacheHit?"cache":"remote"}>{tool.failed?"FAILED":tool.cacheHit?"CACHE HIT":"REMOTE"}</em></header>{tool.request!==undefined&&<details><summary>Tool request</summary><pre>{prettyDiagnostic(tool.request)}</pre></details>}{tool.output!==undefined&&<details><summary>Tool response</summary><pre>{prettyDiagnostic(tool.output)}</pre></details>}{tool.error&&<div className="tool-error">{tool.error}</div>}</article>)}</div>}</section>
