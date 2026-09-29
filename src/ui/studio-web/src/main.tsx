@@ -1336,6 +1336,7 @@ function RegistryPage({
 }) {
   const [type, setType] = React.useState("ALL");
   const [adding, setAdding] = React.useState(false);
+  const [credentialRegistry, setCredentialRegistry] = React.useState<Registry | null>(null);
   const [selected, setSelected] = React.useState("");
   const [artifacts, setArtifacts] = React.useState<Artifact[]>([]);
   const [busy, setBusy] = React.useState("");
@@ -1466,6 +1467,7 @@ function RegistryPage({
               {r.syncError && <small>{r.syncError}</small>}
               <footer>
                 <button onClick={() => removeRegistry(r)}>Delete</button>
+                <button onClick={() => setCredentialRegistry(r)}>Private access</button>
                 <button onClick={() => show(r)}>Artifacts</button>
                 <button
                   className="primary"
@@ -1548,6 +1550,7 @@ function RegistryPage({
           }}
         />
       )}
+      {credentialRegistry && <RegistryCredentialModal registry={credentialRegistry} close={()=>setCredentialRegistry(null)} saved={async()=>{setCredentialRegistry(null);await reload();onNotice("Private GitHub access updated. Sync the registry to refresh artifacts.");}}/>}
     </>
   );
 }
@@ -1563,6 +1566,8 @@ function RegistryModal({
   );
   const [type, setType] = React.useState<"AGENT" | "MCP" | "SKILL">("AGENT");
   const [name, setName] = React.useState("");
+  const [branch, setBranch] = React.useState("main");
+  const [accessToken, setAccessToken] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -1580,10 +1585,11 @@ function RegistryModal({
           sourceUri: url,
           owner,
           metadata: {
-            branch: "main",
+            branch,
             manifest: "catalog.json",
             syncMode: "MANUAL",
           },
+          accessToken: accessToken || undefined,
         }),
       });
       saved();
@@ -1621,6 +1627,15 @@ function RegistryModal({
           </select>
         </label>
         <label>
+          Branch or tag
+          <input required value={branch} onChange={(e)=>setBranch(e.target.value)} />
+        </label>
+        <label>
+          GitHub token for private repository
+          <input type="password" autoComplete="new-password" value={accessToken} onChange={(e)=>setAccessToken(e.target.value)} placeholder="Optional for public repositories" />
+          <small>Stored encrypted and never returned to the browser.</small>
+        </label>
+        <label>
           Display name
           <input
             value={name}
@@ -1643,6 +1658,11 @@ function RegistryModal({
       </form>
     </div>
   );
+}
+function RegistryCredentialModal({registry,close,saved}:{registry:Registry;close:()=>void;saved:()=>void}){
+  const [accessToken,setAccessToken]=React.useState("");const [busy,setBusy]=React.useState(false);
+  async function submit(event:React.FormEvent){event.preventDefault();setBusy(true);try{await api("/api/v1/registries/"+registry.registryId+"/credential",{method:"PUT",body:JSON.stringify({accessToken})});saved()}finally{setBusy(false)}}
+  return <div className="backdrop"><form className="modal" onSubmit={submit}><div className="panel-title"><div><p className="eyebrow">PRIVATE REGISTRY</p><h2>Configure GitHub access</h2></div><button type="button" onClick={close}>×</button></div><p>{registry.displayName}</p><label>Fine-grained GitHub token<input required type="password" autoComplete="new-password" value={accessToken} onChange={event=>setAccessToken(event.target.value)} /></label><small>The token needs Contents: Read access to this repository. It is encrypted at rest and never returned.</small><div className="actions"><button type="button" onClick={close}>Cancel</button><button className="primary" disabled={busy||!accessToken.trim()}>{busy?"Saving…":"Save private access"}</button></div></form></div>
 }
 function MemoryPage({ onNotice }: { onNotice: (v: string) => void }) {
   const [ns, setNs] = React.useState("agent-session");
