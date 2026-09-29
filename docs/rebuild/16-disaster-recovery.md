@@ -2,6 +2,8 @@
 
 This runbook is for rebuilding Agent Studio when the local source tree is gone. It is deliberately more prescriptive than the architecture documents. It does not replace backups: preserve the Git repositories, container registry, PostgreSQL backups, encryption key, and external secrets separately.
 
+For a planned transfer between laptops where the current installation is still available, follow `../36-moving-to-a-new-laptop.md` first. It includes safe key-source detection, backup validation, restore order, and post-migration checks.
+
 ## Recovery inputs
 
 Recover as many of these as possible before generating code:

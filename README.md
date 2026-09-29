@@ -68,6 +68,10 @@ For a new chat or coding-agent handoff, read the current secret-free checkpoint 
 [`docs/rebuild/RECOVERY_PROGRESS.md`](docs/rebuild/RECOVERY_PROGRESS.md) before
 editing. It records the branch, uncommitted slices, migrations, verification
 evidence, and remaining checks that conversation history would otherwise lose.
+When moving the installation to another machine, follow
+[`docs/36-moving-to-a-new-laptop.md`](docs/36-moving-to-a-new-laptop.md) to
+transfer Git history, PostgreSQL state, the original encryption key, and
+external credential references safely.
 
 ## Implementation philosophy
 Do **not** build another agent framework. Build a control plane, stable execution harness, framework adapters, governed capability gateway, durable workflow integration, deployment/runtime management, and enterprise governance.

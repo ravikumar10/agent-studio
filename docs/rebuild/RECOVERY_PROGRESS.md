@@ -2,6 +2,8 @@
 
 This file is a secret-free checkpoint for continuing Agent Studio in a new Codex or Claude Code session. Revalidate it against `git status`, migrations, and the running stack before editing.
 
+For machine replacement, use `docs/36-moving-to-a-new-laptop.md`; Git alone does not preserve PostgreSQL volumes or the encryption key.
+
 ## Repository checkpoint
 
 - Date: 2026-09-30 (Asia/Kolkata)

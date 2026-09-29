@@ -8,6 +8,7 @@
 **/node_modules/
 **/dist/
 *.log
+backups/
 
 # Independently versioned registry repository.
 src/examples/github-registry/
