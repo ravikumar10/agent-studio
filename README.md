@@ -73,5 +73,12 @@ When moving the installation to another machine, follow
 transfer Git history, PostgreSQL state, the original encryption key, and
 external credential references safely.
 
+Create or restore a complete local transfer package with one command:
+
+```bash
+./laptop-transfer.sh backup /path/to/encrypted-storage
+./laptop-transfer.sh restore /path/to/agent-studio-transfer-YYYYMMDD-HHMMSS.tar.gz
+```
+
 ## Implementation philosophy
 Do **not** build another agent framework. Build a control plane, stable execution harness, framework adapters, governed capability gateway, durable workflow integration, deployment/runtime management, and enterprise governance.

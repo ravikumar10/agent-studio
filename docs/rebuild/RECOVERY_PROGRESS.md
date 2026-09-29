@@ -3,6 +3,7 @@
 This file is a secret-free checkpoint for continuing Agent Studio in a new Codex or Claude Code session. Revalidate it against `git status`, migrations, and the running stack before editing.
 
 For machine replacement, use `docs/36-moving-to-a-new-laptop.md`; Git alone does not preserve PostgreSQL volumes or the encryption key.
+Use `./laptop-transfer.sh backup <encrypted-destination>` on the old machine and `./laptop-transfer.sh restore <archive>` on the new machine for the validated one-command workflow.
 
 ## Repository checkpoint
 
@@ -72,6 +73,12 @@ PASS — non-zero token/call/cost aggregates returned.
 
 git diff --check
 PASS.
+
+bash -n laptop-transfer.sh
+PASS — portable transfer script syntax validated.
+
+./laptop-transfer.sh backup backups
+PASS — main database, optional sample database, exact running encryption key, manifest, metadata and checksums packaged; extracted archive checksums all passed.
 ```
 
 The clean-database Flyway path, Redis-loss session recovery test, public endpoint/widget acceptance path, complete `./start.sh` readiness check, and creation of actual UI test files still need to be completed before release.

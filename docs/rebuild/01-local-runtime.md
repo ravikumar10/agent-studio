@@ -42,3 +42,7 @@ Important environment overrides:
 If the runtime reports `No such image: agent-studio/runtime-worker:local`, run `./start.sh` without `--no-build`. If migrations fail, inspect control-plane logs and correct the migration; never edit an already-applied migration. Add a new migration instead. If the UI is stale, rebuild and recreate `studio-web`, then reload the browser.
 
 Do not delete volumes as a normal repair step. Destructive reset is an explicit operator decision because it erases profiles, agents, runs, and secrets.
+
+## Machine transfer
+
+`./laptop-transfer.sh backup <destination>` creates one validated, owner-only transfer archive containing the PostgreSQL dump, exact running encryption key, metadata, checksums, and optional sample database. `./laptop-transfer.sh restore <archive>` validates and restores it, then invokes `./start.sh`. See `../36-moving-to-a-new-laptop.md`. Transfer archives contain sensitive data and must never be committed.
