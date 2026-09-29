@@ -8,6 +8,8 @@ Dashboard, Agents, Capabilities, MCP/API Connections, Model Profiles, Evaluation
 ## Agent editor
 Identity; runtime/hosting; instructions/prompt ref; schemas; model profile; tool capabilities; delegated agent capabilities; context; memory; budgets; security; hosting/deployment; tests/evals. Actions: Save Draft, Validate, Test, Eval, Create Version, Release.
 
+The builder also configures a fixed initial prompt, ordered skill/tool/guardrail bindings, named provider bindings, and optional endpoint/widget publication. Published URLs are opaque and copied only after persistence; widget publication clearly warns that it is public and allows explicit origins.
+
 ## Runtime selector
 Hosting: Platform Managed / Client Managed / External. Runtime: Config / Embabel / Remote HTTP / Remote A2A. UI enforces valid combinations.
 
@@ -22,6 +24,10 @@ Version diff, prompt/model/tool/policy changes, eval comparison, schema compatib
 
 ## Runs
 List and detail with agent/version, tenant, status, duration, cost, runtime location and semantic event graph.
+
+## Memory and public delivery
+
+Memory shows PostgreSQL as durable session/evidence storage and Redis as hot projection/cache, with TTL and bounded-context behavior explained. Public widgets render as responsive standalone chat surfaces, preserve a browser session ID, and show attachment input only for document-capable agents.
 
 ## Client Runtime
 Runtime ID, environment/cluster, health/connectivity, runtime version, supported worker types, allowed capabilities, last heartbeat.

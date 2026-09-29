@@ -18,6 +18,13 @@ class ModelGatewayPromptTest {
 
     @Test void explicitlyMarksMissingEvidence(){
         ModelGateway gateway=new ModelGateway(null,new ObjectMapper(),null,null);
-        assertThat(gateway.prompt(Map.of("message","hello","toolResults",List.of()))).contains("No tool returned evidence");
+        assertThat(gateway.prompt(Map.of("message","hello","toolResults",List.of()))).contains("No current or previous tool returned evidence");
+    }
+
+    @Test void includesDurableSessionEvidenceWithoutRepeatingTheTool(){
+        ModelGateway gateway=new ModelGateway(null,new ObjectMapper(),null,null);
+        Map<String,Object> evidence=Map.of("capability","document.ocr-extract","content",Map.of("response",Map.of("text","Shipment origin: Shenzhen")));
+        String prompt=gateway.prompt(Map.of("message","Where did it originate?","sessionEvidence",List.of(evidence),"toolResults",List.of()));
+        assertThat(prompt).contains("previousSessionEvidence","document.ocr-extract","Shipment origin: Shenzhen");
     }
 }

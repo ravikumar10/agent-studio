@@ -14,6 +14,12 @@ New executions resolve the active version; existing executions remain pinned. Up
 
 The natural-language description is metadata and design input. It is not implicitly the runtime input for scheduled jobs. Scheduled input must be explicit.
 
+The builder also stores a fixed `initialPrompt` inside the versioned `plan://` prompt reference. It defines role, objective, grounding, and response expectations for every run. Tool selection is bounded to the immutable version's ordered logical capabilities; chat text may influence which attached tool the model chooses, but it cannot add a new tool or rewrite the configuration.
+
+## Publishing an agent
+
+Each version may be configured for a trigger API, widget, or both. Saving publication settings creates an opaque stable public ID for the logical agent and points it at the newly saved version. Endpoint-only publication may be `PUBLIC` or `API_KEY`; widgets are public because embedding a browser secret would not protect it. Allowed origins drive CORS and widget `frame-ancestors`. See `../35-agent-endpoints-and-widgets.md` for request examples and limitations.
+
 ## Registry model
 
 Registry types are AGENT, MCP, and SKILL. A GitHub registry exposes `catalog.json`; sync stages artifact metadata and pull stores immutable content. Required production flow is discover → pull → validate → approve → publish. Publication materializes an artifact into the appropriate organization catalog. Never execute mutable repository content directly during a run.

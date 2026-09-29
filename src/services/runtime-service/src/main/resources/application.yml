@@ -21,5 +21,9 @@ management:
   endpoints.web.exposure.include: health,info,prometheus
   endpoint.health.probes.enabled: true
 agent-studio:
+  memory:
+    hot-ttl: ${AGENT_STUDIO_MEMORY_HOT_TTL:PT24H}
+    max-turns: ${AGENT_STUDIO_MEMORY_MAX_TURNS:20}
+    max-evidence: ${AGENT_STUDIO_MEMORY_MAX_EVIDENCE:8}
   secrets:
     encryption-key: ${AGENT_STUDIO_ENCRYPTION_KEY:local-development-encryption-key-change-me}

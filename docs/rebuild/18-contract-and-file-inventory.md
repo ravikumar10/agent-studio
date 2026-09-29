@@ -33,6 +33,7 @@ All public APIs use `/api/v1`, carry `X-Tenant-Id`, and user-owned mutations als
 | User profile/config | get/update profile; list/put/delete namespaced configuration |
 | Agents | list/create/update/delete; list/create versions; lifecycle action |
 | Runtime config | get/put version placement, trigger, resources, capability profiles |
+| Public agents | describe by public ID; synchronous/asynchronous invoke; poll run; widget HTML; CORS preflight |
 | Models | verify/create/list/delete connections; list available models; create/list/delete logical profiles |
 | Capabilities | list/create logical capabilities |
 | Providers | list/create/update/delete/verify; list/create/delete bindings |
@@ -87,12 +88,20 @@ Recreate and retain these migration names and ordering for upgrade compatibility
 | V27 | Slack provider bindings |
 | V28 | local Slack MCP routing |
 | V29 | registry promotion lifecycle |
+| V30 | run session IDs and persisted inputs |
+| V31 | Slack event-to-agent invocation |
+| V32 | Slack invocation risk correction |
+| V33 | Slack event deduplication |
+| V34 | organization guardrail catalog and version bindings |
+| V35 | version-pinned public agent endpoints and widgets |
+| V36 | durable sessions, turns, evidence, and legacy-session backfill |
+| V37 | source-dated model pricing and zero-cost usage backfill |
 
-Do not edit these after release. Add V30 and later for subsequent changes.
+Do not edit these after release. Add V38 and later for subsequent changes.
 
 ## Required durable concepts
 
-At minimum preserve tables/relations for organization accounts and users; agents and immutable versions; release state; model connections and logical profiles; capabilities, provider profiles, provider secrets, and bindings; agent runtime configuration and per-capability provider selection; registries and artifacts; available skills; runs and run events; memory records; deployment environments/plans; schedules and Brain profiles; organization integration types; and encrypted user secrets/configuration.
+At minimum preserve tables/relations for organization accounts and users; agents and immutable versions; release state; model connections and logical profiles; capabilities, provider profiles, provider secrets, and bindings; agent runtime configuration and per-capability provider selection; registries and artifacts; available skills and guardrails; runs and run events; durable sessions, turns, and evidence; public agent exposures; memory records; deployment environments/plans; schedules and Brain profiles; organization integration types; and encrypted user secrets/configuration.
 
 Every row that represents organization data needs an organization/tenant key. Foreign keys and uniqueness constraints must include it where appropriate.
 

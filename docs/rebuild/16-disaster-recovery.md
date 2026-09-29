@@ -141,7 +141,7 @@ Emit semantic events such as run created/started, execution dispatched, planning
 
 ### 5. Model gateway
 
-Implement OpenAI, Anthropic, and OpenAI-compatible connections behind one gateway. Saving a connection requires backend verification for supported providers. Agents select a logical profile; the gateway selects connection/model and records tokens, calls, duration, and estimated cost.
+Implement OpenAI, Anthropic, and OpenAI-compatible connections behind one gateway. Saving a connection requires backend verification for supported providers. Agents select a logical profile; the gateway selects connection/model and records tokens, calls, duration, and estimated cost. Store source-dated per-million-token rates in the logical profile, emit integer micro-USD, and reconcile dashboard totals against usage events. Do not infer unknown pricing silently.
 
 Support mock/local behavior so the stack can be verified without paid credentials. A model call may interpret requests and synthesize answers, but factual data requested through configured capabilities must come from tool evidence.
 
@@ -161,9 +161,13 @@ Provide samples for public HTTP extraction, Playwright headless browsing, read-o
 
 ### 7. Memory and response composition
 
-Use Redis for hot conversation state and bounded exact tool-result caching. Use PostgreSQL for durable memory metadata/history. Preserve evidence and chart specifications in a standard response envelope so one assistant message can contain formatted text, tables, multiple charts, images, files, citations, and notices.
+Use PostgreSQL tables `agent_sessions`, `session_turns`, and `session_evidence` as the durable source of truth. Use Redis key `session-context:{tenant}:{session}` as a rebuildable hot projection and for bounded exact tool-result caching. Validate that a session belongs to the same tenant, agent, and subject. Preserve sanitized, content-hashed tool evidence and chart specifications in a standard response envelope so one assistant message can contain formatted text, tables, multiple charts, images, files, citations, and notices.
 
 Never let cached data bypass tenant isolation, TTL, capability policy, or freshness requirements.
+
+### 7a. Public agent delivery
+
+Create version-pinned public exposure configuration with an opaque ID, endpoint/widget switches, origin allow-list, and optional API-key verifier hash. Proxy public requests through the normal runtime invocation contract so every call receives a unique run ID and optional reusable session ID. Serve a same-origin widget route through Nginx; document-capable agents expose a bounded file-to-base64 input. Do not put plaintext public API keys in PostgreSQL, logs, events, or generated HTML.
 
 ### 8. Registry-driven extensibility
 

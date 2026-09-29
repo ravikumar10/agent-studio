@@ -8,13 +8,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
 @Component
 public class ConfigRuntimeAdapter implements AgentRuntimeAdapter {
     private static final Set<String> POST_RESPONSE_DELIVERY = Set.of("slack.messages.send");
-    private final ModelGateway models; private final AgentCreatorService creators; private final CapabilityPipeline pipeline; private final AgentLoopPlanner planner; private final StandardAgentResponseComposer responses;
-    public ConfigRuntimeAdapter(ModelGateway models,AgentCreatorService creators,CapabilityPipeline pipeline,AgentLoopPlanner planner,StandardAgentResponseComposer responses){this.models=models;this.creators=creators;this.pipeline=pipeline;this.planner=planner;this.responses=responses;}
+    private final ModelGateway models; private final AgentCreatorService creators; private final CapabilityPipeline pipeline; private final AgentLoopPlanner planner; private final StandardAgentResponseComposer responses; private final ObjectMapper json;
+    public ConfigRuntimeAdapter(ModelGateway models,AgentCreatorService creators,CapabilityPipeline pipeline,AgentLoopPlanner planner,StandardAgentResponseComposer responses,ObjectMapper json){this.models=models;this.creators=creators;this.pipeline=pipeline;this.planner=planner;this.responses=responses;this.json=json;}
     public boolean supports(AgentVersion.RuntimeType type) { return type == AgentVersion.RuntimeType.CONFIG; }
     public AgentExecutionResult execute(AgentVersion agent, AgentExecutionRequest request, ExecutionContext context) {
         if (Instant.now().isAfter(context.deadline())) return new AgentExecutionResult(AgentExecutionResult.Status.FAILED,Map.of(),List.of(),List.of(),null,"deadline exceeded");
@@ -29,10 +32,7 @@ public class ConfigRuntimeAdapter implements AgentRuntimeAdapter {
         CapabilityPipeline.Result tools;
         try{tools=pipeline.execute(agent,request.input(),context.subjectId(),workCapabilities,plan.strategy(),plan.arguments());}
         catch(CapabilityPipeline.ToolCallFailure failure){List<AgentExecutionResult.SemanticEvent> events=List.of(new AgentExecutionResult.SemanticEvent("agent.plan.completed",Instant.now(),Map.of("strategy",plan.strategy(),"reason",plan.reason(),"selectedCapabilities",plan.capabilities(),"parameterizedCapabilities",plan.arguments().keySet(),"skillGuided",plan.strategy().contains("SKILL_GUIDED"),"modelCall",plan.modelUsage()!=null)),new AgentExecutionResult.SemanticEvent("tool.failed",Instant.now(),Map.of("iteration",failure.iteration(),"capability",failure.capability(),"request",failure.request(),"error",failure.getMessage())));long input=plan.modelUsage()==null?0:plan.modelUsage().inputTokens(),output=plan.modelUsage()==null?0:plan.modelUsage().outputTokens(),cost=plan.modelUsage()==null?0:plan.modelUsage().costMicros();return new AgentExecutionResult(AgentExecutionResult.Status.FAILED,Map.of("analysis",Map.of("planningStrategy",plan.strategy(),"selectedCapabilities",plan.capabilities()),"toolResults",List.of()),List.of(),events,new AgentExecutionResult.Usage(Math.toIntExact(input),Math.toIntExact(output),plan.modelUsage()==null?0:1,cost),failure.getMessage());}
-        if(!agent.toolCapabilitiesRequired().isEmpty()&&tools.steps().isEmpty()&&deliveryCapabilities.isEmpty()){
-            return new AgentExecutionResult(AgentExecutionResult.Status.FAILED,Map.of("groundingPolicy","MCP_ONLY","toolResults",List.of()),List.of(),List.of(new AgentExecutionResult.SemanticEvent("grounding.failed",Instant.now(),Map.of("policy","MCP_ONLY","reason","no MCP evidence was produced"))),new AgentExecutionResult.Usage(0,0,0,0),"MCP-only grounding requires at least one successful tool result");
-        }
-        Map<String,Object> enriched=new java.util.LinkedHashMap<>(request.input());enriched.put("toolResults",tools.steps());enriched.put("instruction","Use the ordered tool results as grounded evidence. Do not request a repeated tool call. Write the concise narrative portion of a standard agent response; MCP chart artifacts will be attached to that same response document by the platform.");enriched.put("selectedCapabilities",plan.capabilities());
+        Map<String,Object> enriched=new java.util.LinkedHashMap<>(request.input());enriched.put("toolResults",tools.steps());enriched.put("instruction",initialPrompt(agent)+"\nUse the ordered tool results as grounded evidence. Do not request a repeated tool call. Write the concise narrative portion of a standard agent response; MCP chart artifacts will be attached to that same response document by the platform.");enriched.put("selectedCapabilities",plan.capabilities());
         var generated=models.invoke(context.tenantId(),agent.modelProfile(),Map.copyOf(enriched));
         if(generated.isPresent()){
             var result=generated.get();
@@ -52,7 +52,7 @@ public class ConfigRuntimeAdapter implements AgentRuntimeAdapter {
             List<CapabilityPipeline.Step> allSteps=concat(tools.steps(),delivery.steps());
             var analysis=merge(tools,delivery,plan);
             String answer=report+deliveryConfirmation(delivery);
-            Map<String,Object> output=Map.of("answer",answer,"response",responses.compose(answer,allSteps,Map.of("agentId",agent.agentId(),"model",result.model(),"provider",result.provider())),"model",result.model(),"provider",result.provider(),"toolResults",allSteps,"groundingPolicy",agent.toolCapabilitiesRequired().isEmpty()?"MODEL":"MCP_ONLY","analysis",analysis);
+            Map<String,Object> output=Map.of("answer",answer,"response",responses.compose(answer,allSteps,Map.of("agentId",agent.agentId(),"model",result.model(),"provider",result.provider())),"model",result.model(),"provider",result.provider(),"toolResults",allSteps,"groundingPolicy",allSteps.isEmpty()?"MODEL":"MCP_ONLY","analysis",analysis);
             long plannerInput=plan.modelUsage()==null?0:plan.modelUsage().inputTokens(),plannerOutput=plan.modelUsage()==null?0:plan.modelUsage().outputTokens(),plannerCost=plan.modelUsage()==null?0:plan.modelUsage().costMicros();int calls=plan.modelUsage()==null?1:2;
             List<AgentExecutionResult.SemanticEvent> events=new java.util.ArrayList<>();events.add(new AgentExecutionResult.SemanticEvent("agent.analysis.started",Instant.now(),Map.of("maxIterations",analysis.maxIterations(),"llmPolicy","ON_DEMAND","cacheStrategy",analysis.cacheStrategy())));events.add(new AgentExecutionResult.SemanticEvent("agent.plan.completed",Instant.now(),Map.of("strategy",plan.strategy(),"reason",plan.reason(),"selectedCapabilities",plan.capabilities(),"parameterizedCapabilities",plan.arguments().keySet(),"skillGuided",plan.strategy().contains("SKILL_GUIDED"),"attachedCapabilityCount",agent.toolCapabilitiesRequired().size(),"modelCall",plan.modelUsage()!=null)));allSteps.forEach(step->events.add(new AgentExecutionResult.SemanticEvent("tool.completed",Instant.now(),toolEvent(step))));events.add(new AgentExecutionResult.SemanticEvent("model.completed",Instant.now(),Map.of("profile",agent.modelProfile(),"model",result.model(),"provider",result.provider(),"callPolicy","ON_DEMAND","inputTokens",result.inputTokens(),"outputTokens",result.outputTokens(),"costMicros",result.costMicros())));events.add(new AgentExecutionResult.SemanticEvent("agent.analysis.completed",Instant.now(),Map.of("iterations",analysis.iterations(),"modelCalls",calls,"cacheHits",analysis.cacheHits())));
             return new AgentExecutionResult(AgentExecutionResult.Status.COMPLETED,output,List.of(),List.copyOf(events),new AgentExecutionResult.Usage(Math.toIntExact(result.inputTokens()+plannerInput),Math.toIntExact(result.outputTokens()+plannerOutput),calls,result.costMicros()+plannerCost),null);
@@ -100,5 +100,10 @@ public class ConfigRuntimeAdapter implements AgentRuntimeAdapter {
 
     private static Map<String,Object> toolEvent(CapabilityPipeline.Step step){
         Map<String,Object> event=new LinkedHashMap<>();event.put("iteration",step.iteration());event.put("capability",step.capability());event.put("providerId",step.providerId());event.put("transport",step.transport());event.put("cacheHit",step.cacheHit());event.put("request",step.request());if(step.output()!=null)event.put("response",step.output());return Map.copyOf(event);
+    }
+    private String initialPrompt(AgentVersion agent){
+        if(agent.promptRef()==null||!agent.promptRef().startsWith("plan://"))return "Follow the immutable agent definition and attached skills.";
+        try{return json.readTree(URLDecoder.decode(agent.promptRef().substring(7),StandardCharsets.UTF_8)).path("initialPrompt").asText("Follow the immutable agent definition and attached skills.");}
+        catch(Exception ignored){return "Follow the immutable agent definition and attached skills.";}
     }
 }
